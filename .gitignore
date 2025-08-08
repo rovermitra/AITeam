@@ -1,0 +1,13 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables file
+.env
+Embedding Only.ipynb
+LLM_Based.ipynb
+backup.py
+psychological_user_profiles.json
+travel_ready_user_profiles.json
+README.md

@@ -1,0 +1,222 @@
+# main.py
+import sys
+import os
+# Ensure project root is importable when running from anywhere
+sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
+
+import json
+import uuid
+import openai
+from dotenv import load_dotenv
+from utils import parse_llm_json, safe_write_json, prefilter_candidates
+
+# Load env
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
+DB_FILE_PATH = "data/travel_ready_user_profiles.json"
+
+def profile_to_natural_text(user):
+    lines = []
+    lines.append(f"Name: {user.get('name', 'N/A')}")
+    lines.append(f"Age: {user.get('age', 'N/A')}")
+    lines.append(f"Gender: {user.get('gender', 'N/A')}")
+    location_parts = [p for p in (user.get('location'), user.get('country')) if p]
+    lines.append(f"Location: {', '.join(location_parts) if location_parts else 'N/A'}")
+    lines.append(f"Occupation: {user.get('occupation', 'N/A')}")
+    lines.append(f"Interests: {', '.join(user.get('interests', [])) or 'N/A'}")
+    lines.append(f"Languages: {', '.join(user.get('languages', [])) or 'N/A'}")
+
+    if 'bio' in user and user['bio']:
+        lines.append(f"Bio: {user['bio']}")
+
+    if 'personality' in user and isinstance(user['personality'], dict):
+        sorted_traits = sorted(user['personality'].items(), key=lambda x: -x[1])
+        # print the normalized (0.0-1.0) values as 1-10 for readability:
+        best_traits = ', '.join([f"{k}: {round(v*10, 1)}" for k, v in sorted_traits[:5]])
+        lines.append(f"Top personality traits (1-10): {best_traits}")
+
+    return "\n".join(lines)
+
+def build_llm_prompt(new_user, db_users):
+    text = (
+        "You are a psychologist specializing in human behavior and matchmaking. "
+        "Match the query user with compatible candidates for traveling together.\n\n"
+    )
+    text += "--- Query User Profile ---\n"
+    text += profile_to_natural_text(new_user) + "\n\n"
+    text += f"--- Candidate Profiles ({len(db_users)}) ---\n"
+    for i, u in enumerate(db_users):
+        text += f"\n--- Candidate [{i+1}] ---\n" + profile_to_natural_text(u) + "\n"
+    text += (
+        "\n\nReturn a JSON object with a top-level key `matches` whose value is an array of objects:\n"
+        "each object: {name: str, explanation: str, compatibility_score: 0.0-1.0}\n"
+        "Only return JSON (we'll call via function-calling)."
+    )
+    return text
+
+def llm_find_matches(new_user, db_users):
+    if not openai.api_key:
+        print("Error: OPENAI_API_KEY not found. Please set in your .env file.")
+        return []
+
+    prompt = build_llm_prompt(new_user, db_users)
+
+    functions = [
+        {
+            "name": "match_response",
+            "description": "Provide travel match results",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "matches": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string"},
+                                "explanation": {"type": "string"},
+                                "compatibility_score": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+                            },
+                            "required": ["name", "explanation", "compatibility_score"]
+                        }
+                    }
+                },
+                "required": ["matches"]
+            }
+        }
+    ]
+
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": "You are a helpful matchmaking assistant."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.3,
+            max_tokens=1500,
+            functions=functions,
+            function_call={"name": "match_response"}
+        )
+
+        msg = response.choices[0].message
+        func_call = getattr(msg, "function_call", None)
+        func_args = func_call.arguments if func_call and getattr(func_call, "arguments", None) is not None else "{}"
+
+        parsed = parse_llm_json(func_args)
+
+        matches = []
+        if isinstance(parsed, list):
+            matches = parsed
+        elif isinstance(parsed, dict):
+            if isinstance(parsed.get("matches"), list):
+                matches = parsed["matches"]
+            else:
+                for v in parsed.values():
+                    if isinstance(v, list):
+                        matches = v
+                        break
+
+        print("Parsed LLM function arguments:", parsed)
+        print("Extracted matches:", matches)
+
+        return matches
+
+    except Exception as e:
+        print(f"Error during API call or parsing: {e}")
+        return []
+
+
+    except Exception as e:
+        # Helpful debug to inspect the raw response shape (safe to remove later)
+        try:
+            import traceback
+            traceback.print_exc()
+        except Exception:
+            pass
+        print(f"Error during API call or parsing: {e}")
+        return []
+
+def read_int_1_10(prompt, default=None):
+    while True:
+        val = input(prompt).strip()
+        if not val and default is not None:
+            return default
+        try:
+            i = int(val)
+            if 1 <= i <= 10:
+                return i
+            print("Please enter an integer between 1 and 10.")
+        except ValueError:
+            print("Please enter a valid integer between 1 and 10.")
+
+def read_int(prompt, default=None):
+    while True:
+        val = input(prompt).strip()
+        if not val and default is not None:
+            return default
+        try:
+            return int(val)
+        except ValueError:
+            print("Please enter a valid integer.")
+
+def create_manual_profile():
+    user = {"personality": {}, "id": str(uuid.uuid4())}
+    print("--- Create Your Travel Profile ---")
+    user['name'] = input("Name: ").strip()
+    user['age'] = read_int("Age: ")
+    user['gender'] = input("Gender: ").strip()
+    user['location'] = input("Location (e.g., Berlin): ").strip()
+    user['country'] = input("Country (e.g., Germany): ").strip()
+    user['occupation'] = input("Occupation: ").strip()
+    user['interests'] = [i.strip() for i in input("Enter interests (comma-separated): ").split(',') if i.strip()]
+    user['languages'] = [l.strip() for l in input("Enter languages (comma-separated, e.g., en, de): ").split(',') if l.strip()]
+    user['bio'] = input("Bio: ").strip()
+
+    print("\n--- Personality (score 1 to 10) ---")
+    # We accept 1-10 from user, but normalize to 0.0-1.0 for internal use & LLM
+    user['personality']['openness'] = read_int_1_10("Openness to new experiences: ") / 10.0
+    user['personality']['extraversion'] = read_int_1_10("Extraversion (outgoingness): ") / 10.0
+    user['personality']['agreeableness'] = read_int_1_10("Agreeableness: ") / 10.0
+    user['personality']['conscientiousness'] = read_int_1_10("Conscientiousness (organization): ") / 10.0
+
+    print("\nProfile created successfully!")
+    return user
+
+def add_user_to_db(user, db_path):
+    try:
+        with open(db_path, "r", encoding="utf-8") as f:
+            db_data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        db_data = []
+
+    db_data.append(user)
+    safe_write_json(db_data, db_path)
+    print(f"User '{user['name']}' has been added to {db_path}.")
+
+if __name__ == "__main__":
+    new_user_profile = create_manual_profile()
+    add_user_to_db(new_user_profile, DB_FILE_PATH)
+
+    try:
+        with open(DB_FILE_PATH, "r", encoding="utf-8") as f:
+            db_profiles = json.load(f)
+    except FileNotFoundError:
+        print(f"Database file not found at {DB_FILE_PATH}")
+        db_profiles = []
+
+    if db_profiles:
+        # Filter out the current user
+        candidates = [p for p in db_profiles if p.get('id') != new_user_profile['id']]
+        # Prefilter candidates by shared interests and languages
+        filtered_candidates = prefilter_candidates(new_user_profile, candidates, max_results=5)
+
+        print(f"\nFinding matches for {new_user_profile['name']} among {len(filtered_candidates)} candidates...")
+        matches = llm_find_matches(new_user_profile, filtered_candidates)
+
+        print("\n--- Top Matches Found ---")
+        if matches:
+            print(json.dumps(matches, indent=2))
+        else:
+            print("No matches found or an error occurred.")
