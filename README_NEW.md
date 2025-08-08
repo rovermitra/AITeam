@@ -1,73 +1,58 @@
-# Travel Matchmaker
+# Matchmaker - Ali Recommendation Feature
 
-A command-line tool to create travel user profiles and find compatible travel companions using OpenAI's GPT-4o-mini model.
+This branch introduces a new AI-powered travel matchmaking feature, allowing users to create detailed travel profiles and find compatible travel buddies based on shared interests, location, language, and personality traits.
 
 ---
 
 ## Features
 
-- Create and save travel profiles with personality traits, interests, and demographics.
-- Prefilter candidate profiles based on shared interests and languages.
-- Query the OpenAI API using function-calling for reliable structured JSON responses.
-- Parse and display top matches with explanations and compatibility scores.
-- Includes unit tests for parsing logic.
+- **User Profile Creation**: Input name, age, gender, location, interests, languages, and personality traits (on a scale of 1-10).
+- **AI-Powered Matching**: Uses OpenAI’s GPT-4o-mini model to find the best matches from existing profiles.
+- **Robust JSON parsing and validation** for smooth LLM response handling.
+- **Simple & appealing web UI** built with Flask for interactive profile creation and match display.
+- **Secure handling of OpenAI API key** via `.env` (ensure `.env` is in `.gitignore`).
 
 ---
 
-## Setup
+## Getting Started
 
-1. Clone the repo:
-   ```bash
-   git clone <repo-url>
-   cd Matchmaker
-   
-   
-2. Install Dependecies
-	```
-	pip install -r requirements.txt
+### Prerequisites
 
-	```
-	
+- Python 3.9+
+- OpenAI API key
+- Required Python packages (see `requirements.txt`)
 
-3. Create a .env file in the project root with your OpenAI API key:
-	```
-	OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxx
-	```
-	
-	
-Usage
-Run the main script:
+### Setup
 
-	```
-	python main.py
+1. Clone the repo and checkout this branch:
 
-	```
-	
-Tests
-Run tests with:
-	```
-	pytest tests/
-	```
-	
-	
-File structure
-main.py: Main interactive matchmaking script.
+    ```bash
+    git clone https://github.com/rovermitra/Matchmaker.git
+    cd Matchmaker
+    git checkout ali_recommendation
+    ```
 
-utils.py: Utility functions (JSON parsing, file operations).
+2. Create and activate a Python virtual environment:
 
-data/: JSON profile databases.
+    ```bash
+    python -m venv venv
+    source venv/bin/activate  # Linux/Mac
+    venv\Scripts\activate     # Windows
+    ```
 
-tests/: Unit tests for utilities.
+3. Install dependencies:
 
-.env: Environment variables (API key).
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-requirements.txt: Python dependencies.
+4. Create a `.env` file in the root directory and add your OpenAI API key:
 
-# Dependencies
+    ```env
+    OPENAI_API_KEY=your_openai_api_key_here
+    ```
 
-* Python 3.8+
-* openai
+### Run the app
 
-* python-dotenv
-
-* pytest (for tests)
+```bash
+python app.py
