@@ -12,7 +12,7 @@ from utils import parse_llm_json, safe_write_json, prefilter_candidates
 
 # Load env
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_key = os.getenv("API")
 
 DB_FILE_PATH = "data/travel_ready_user_profiles.json"
 
@@ -38,22 +38,45 @@ def profile_to_natural_text(user):
 
     return "\n".join(lines)
 
-def build_llm_prompt(new_user, db_users):
+def build_llm_prompt(new_user, db_users, top_k=5):
     text = (
-        "You are a psychologist specializing in human behavior and matchmaking. "
-        "Match the query user with compatible candidates for traveling together.\n\n"
-    )
-    text += "--- Query User Profile ---\n"
+        "You are a psychologist and travel-match expert. Given a query user and candidate profiles, "
+        "recommend only those candidates with a compatibility of at least 75% for being an excellent travel companion. "
+        "Think holistically: personality dynamics, emotional style, interests/activities, values and life priorities, "
+        "learning/communication styles, travel style and pace, budget and accommodation fit, destination types, planning style, "
+        "money attitude, sleep/chronotype, cleanliness/organization, diet/substances, safety/risk tolerance, work mode, "
+        "cultural/religious needs, languages, and explicit dealbreakers.\n\n"
+        "Age policy: prefer matches within each person's stated age_preference or within their age_gap_tolerance. "
+        "If missing, infer cautiously from openness/adaptability/maturity; avoid large gaps unless both have high age_openness.\n\n"
+        "Trip context: compatibility should hold for trips from a day to many months and across multiple countries. "
+        "Favor pairs who can realistically enjoy shared activities, handle stress and logistics together, and balance each other's styles "
+        "without persistent friction.\n\n"
+        "OUTPUT STYLE: Return ONLY a JSON list of the top {k} matches with compatibility >= 75%. For each, include:\n"
+        "- name\n"
+        "- explanation: ONE short sentence, second-person, beginning with 'For you,' briefly stating the strongest reason(s) "
+        "(e.g., shared key interests + complementary travel style/pace/budget or aligned values/conflict style). Keep it concise and specific.\n"
+        "- compatibility_score: integer percentage with a % symbol (e.g., \"78%\")\n\n"
+        "Do not include extra fields.\n\n"
+        "Query User Profile:\n"
+    ).format(k=top_k)
+
     text += profile_to_natural_text(new_user) + "\n\n"
-    text += f"--- Candidate Profiles ({len(db_users)}) ---\n"
+
+    text += "Candidate Profiles:\n"
     for i, u in enumerate(db_users):
-        text += f"\n--- Candidate [{i+1}] ---\n" + profile_to_natural_text(u) + "\n"
+        text += f"\n[{i+1}] " + profile_to_natural_text(u)
+
     text += (
-        "\n\nReturn a JSON object with a top-level key `matches` whose value is an array of objects:\n"
-        "each object: {name: str, explanation: str, compatibility_score: 0.0-1.0}\n"
-        "Only return JSON (we'll call via function-calling)."
-    )
+        "\n\nInstructions:\n"
+        "1) Silently filter out candidates who violate hard dealbreakers (e.g., incompatible diet/substances, "
+        "non-overlapping trip_duration_pref, irreconcilable budget or accommodation_style, or age outside stated preferences with low age_openness).\n"
+        "2) Among remaining candidates, reason about multi-dimensional fit (psychological + travel logistics).\n"
+        "3) Only include candidates where compatibility ≥ 75%.\n"
+        "4) Output the top {k} as JSON with the exact keys: name, explanation, compatibility_score (percentage string, e.g., \"82%\").\n"
+    ).format(k=top_k)
+
     return text
+
 
 def llm_find_matches(new_user, db_users):
     if not openai.api_key:
