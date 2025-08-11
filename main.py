@@ -12,7 +12,7 @@ from utils import parse_llm_json, safe_write_json, prefilter_candidates
 
 # Load env
 load_dotenv()
-openai.api_key = os.getenv("API")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 DB_FILE_PATH = "data/travel_ready_user_profiles.json"
 
@@ -55,7 +55,7 @@ def build_llm_prompt(new_user, db_users, top_k=5):
         "- name\n"
         "- explanation: ONE short sentence, second-person, beginning with 'For you,' briefly stating the strongest reason(s) "
         "(e.g., shared key interests + complementary travel style/pace/budget or aligned values/conflict style). Keep it concise and specific.\n"
-        "- compatibility_score: integer percentage with a % symbol (e.g., \"78%\")\n\n"
+        "- compatibility_score: number between 0.0 and 1.0 (e.g., 0.82 for 82%)\n\n"
         "Do not include extra fields.\n\n"
         "Query User Profile:\n"
     ).format(k=top_k)

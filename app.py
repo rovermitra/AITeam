@@ -7,7 +7,7 @@ import openai
 from utils import safe_write_json, llm_find_matches
 
 load_dotenv()
-openai.api_key = os.getenv("API")
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
@@ -75,13 +75,14 @@ def index():
             return render_template("index.html", user=user)
 
         # Send ALL others to LLM (no prefilter)
-        candidates = [p for p in after if p.get('id') != user['id']]
+        candidates = [p for p in after if p.get('id') != user['id']][:20]
         if not candidates:
             flash("No candidates available in the database.", "warning")
             return render_template("index.html", user=user)
 
         try:
             matches = llm_find_matches(user, candidates)
+            print("this is the matches found",matches)
             if not matches:
                 flash("AI returned no matches ≥ 75% right now.", "info")
         except Exception as e:

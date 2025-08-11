@@ -94,11 +94,11 @@ def profile_to_natural_text(u):
 def build_llm_prompt(new_user, db_users, top_k=5):
     """
     Holistic, psychologist-style, travel context; short, second-person explanations;
-    only >= 75%; percentage score string.
+    no minimum compatibility filter (for testing).
     """
     text = (
         "You are a psychologist and travel-match expert. Given a query user and candidate profiles, "
-        "recommend only those candidates with a compatibility of at least 75% for being an excellent travel companion. "
+        "assess compatibility for being an excellent travel companion. "
         "Think holistically: personality dynamics, emotional style, interests/activities, values and life priorities, "
         "learning/communication styles, travel style and pace, budget and accommodation fit, destination types, planning style, "
         "money attitude, sleep/chronotype, cleanliness/organization, diet/substances, safety/risk tolerance, work mode, "
@@ -111,7 +111,7 @@ def build_llm_prompt(new_user, db_users, top_k=5):
         "OUTPUT RULES:\n"
         "1. Output a JSON array ONLY.\n"
         "2. Each object must have keys: name, explanation, compatibility_score.\n"
-        "3. compatibility_score must be an integer percentage string ending with '%', e.g., \"82%\".\n"
+        "3. compatibility_score must be a number between 0.0 and 1.0 (e.g., 0.82 for 82%).\n"
         "4. Do not invent people not in the candidate list.\n"
         "Query User Profile:\n"
     ).format(k=top_k)
@@ -124,12 +124,13 @@ def build_llm_prompt(new_user, db_users, top_k=5):
 
     text += (
         "\n\nInstructions:\n"
-        "1) Drop candidates that violate hard dealbreakers or yield < 75% compatibility.\n"
+        "1) Drop candidates that violate hard dealbreakers only (ignore minimum compatibility filtering for this test).\n"
         "2) Choose realistic, sustainable pairings (not just superficial similarity).\n"
-        "3) Output the top {k} as a JSON array with EXACT keys: name, explanation, compatibility_score (e.g., \"79%\").\n"
+        "3) Output the top {k} as a JSON array with EXACT keys: name, explanation, compatibility_score (e.g., 0.79).\n"
     ).format(k=top_k)
 
     return text
+
 
 # ----------------------------
 # LLM call
@@ -147,7 +148,7 @@ def llm_find_matches(new_user, db_users, top_k=5):
     try:
         # Using Chat Completions with function-like schema is optional; here we just ask for JSON directly.
         resp = openai.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o-mini  ",
             messages=[
                 {"role": "system", "content": "You are a precise, trustworthy travel matchmaker. Output valid JSON only."},
                 {"role": "user", "content": prompt},
@@ -167,15 +168,16 @@ def llm_find_matches(new_user, db_users, top_k=5):
                     continue
                 name = m.get("name")
                 explanation = m.get("explanation")
-                score_str = m.get("compatibility_score", "")
-                if not (name and explanation and isinstance(score_str, str) and score_str.endswith("%")):
+                score_val = m.get("compatibility_score")
+                if not (name and explanation and isinstance(score_val, (int, float))):
                     continue
-                try:
-                    pct = int(score_str.strip().replace("%", ""))
-                except ValueError:
-                    continue
-                if pct >= 75:
-                    matches.append({"name": name, "explanation": explanation, "compatibility_score": f"{pct}%"})
+                if 0.0 <= score_val <= 1.0:
+                    matches.append({
+                        "name": name,
+                        "explanation": explanation,
+                        "compatibility_score": float(score_val)
+                    })
+
         return matches
     except Exception as e:
         print(f"Error during API call or parsing: {e}")
