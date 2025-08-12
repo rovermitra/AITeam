@@ -1,416 +1,227 @@
-# RoverMitra Travel Planner — Dataset Guide
+# RoverMitra — Travel Group Generator & Inventory (v2)
 
-This README explains the **dataset structure** we use to feed the RoverMitra AI Travel Planner, how each field is used by the model, and how to test the whole flow with example **prompts** and **outputs**.
-
----
-
-## Why this dataset?
-
-Our planner needs enough context to:
-
-1. **Choose a meeting plan** for people starting in different cities (e.g., meet at midpoint vs. at destination).
-2. Build **door-to-door routes** under constraints (max transfers, time windows).
-3. Propose **hotels and activities** that match pace, interests, budget, diet/access needs.
-4. Publish a clear, bookable **day-by-day itinerary** into the **RoverMitra chat**.
-
-We store that information as **one JSON object per trip request**:
-
-* `trip_context`: Shared trip-level preferences and constraints.
-* `travelers[]`: Per-person data (origins, budgets, preferences, constraints).
-* `rovermitra_chat`: Where to post and discuss plans.
+This repo contains a **synthetic but realistic dataset generator** for RoverMitra’s travel-planning AI. It produces group travel requests plus draft inventories (flights, trains, hotels, restaurants, activities) that your LLM/agents can turn into **bookable, day‑by‑day itineraries**.
 
 ---
 
-## File locations
+## What this script does
 
-* Generated groups file: `data/travel_group_requests.json` (1,000+ groups).
-* Generator script: `generate_groups.py` (creates realistic mixed-quality data).
+* Creates **N\_GROUPS** (default 1000) travel groups with:
 
-To (re)generate:
-
-```bash
-python generate_groups.py
-# writes data/travel_group_requests.json
-```
+  * **travelers** (size 1–15, realistic distribution)
+  * **trip\_context** (destinations, dates, constraints, preferences)
+  * **draft\_plan** inventories (flight/train offers, hotel/restaurant/activity options) and a skeleton day-by-day plan
+* Ensures **city ↔ country** pairs are valid and uses plausible **airport codes**
+* Mixes **rich** profiles (75%) and **lean** profiles (25%) to test agent robustness
+* Writes a single JSON file (default: `data/travel_group_requests_with_inventory_v2.json`)
 
 ---
 
-## Top-level schema (one group)
+## Quick start
+
+1. Open the script and tweak:
+
+   * `N_GROUPS` (e.g., 10\_000 for a big corpus)
+   * `RICH_GROUP_RATIO` (0.75 = 75% rich)
+   * `OUT_PATH` (output location)
+2. Run the script (Python 3.9+):
+
+   ```bash
+   python generate_travel_groups_v2.py
+   ```
+3. Inspect the output:
+
+   ```python
+   import json
+   data = json.load(open("data/travel_group_requests_with_inventory_v2.json", "r", encoding="utf-8"))
+   print(len(data), "groups")
+   print(data[0].keys())
+   ```
+
+---
+
+## File structure (top level)
+
+Each **group** object contains:
 
 ```json
 {
   "group_id": "uuid",
-  "rovermitra_chat": {
-    "room_id": "rmr_xxxxxxxx",
-    "created_at": "2025-08-10T12:00:00Z"
-  },
-  "trip_context": { ... },
-  "travelers": [ ... ]
+  "rovermitra_chat": {"room_id": "rmr_xxx", "created_at": "ISO8601Z"},
+  "trip_context": { /* preferences & constraints */ },
+  "travelers": [ /* 1..15 traveler objects */ ],
+  "draft_plan": { /* offers + skeleton itinerary */ }
 }
 ```
 
-### Why each top-level field matters
+### `rovermitra_chat`
 
-* **group\_id** — stable ID for this request; used for updates/threads.
-* **rovermitra\_chat** — allows the AI to post plans and revisions inside our product (no external messengers).
-* **trip\_context** — shared trip goals & constraints; the “envelope” the itinerary must respect.
-* **travelers\[]** — starting points & personal constraints to compute routes, costs, and compatibility.
+* `room_id`: the internal chat space where the agent will post options & confirmations
+* `created_at`: creation timestamp for ordering/history
 
 ---
 
-## `trip_context` (shared trip-level fields)
+## `trip_context` (what the planner must honor)
 
-```json
-{
-  "title": "Group-12 Trip",
-  "destinations": ["Zurich", "Lucerne", "Interlaken"],
-  "date_window": {
-    "earliest_departure": "2025-09-15",
-    "latest_return": "2025-09-22",
-    "preferred_trip_length_days": 7,
-    "blackout_dates": []
-  },
-  "meeting_strategy_allowed": ["en_route_midpoint", "at_destination", "origin_A", "origin_B"],
-  "meeting_priority_objective": "minimize_total_travel_time_and_cost",
-  "itinerary_style": "multi-stop",
-  "min_time_per_stop_hours": 24,
-  "luggage": { "carry_on_only": true, "special_gear": ["camera"] },
-  "co2_preference": true,
-  "tradeoff_weights": { "cost": 0.35, "time": 0.25, "comfort": 0.20, "scenery": 0.15, "co2": 0.05 },
-  "hard_constraints": {
-    "earliest_departure_time_local": "08:30",
-    "latest_arrival_time_local": "21:30",
-    "max_daily_travel_hours": 6,
-    "max_transfers": 2,
-    "room_setup": "twin"
-  },
-  "output_preferences": {
-    "detail_level": "day-by-day",
-    "include_booking_links": true,
-    "currency": "EUR",
-    "units": "metric",
-    "share_to_rovermitra_chat": true
-  }
-}
-```
+Key fields your planning agent should read before generating an itinerary:
 
-**Field meanings (short):**
+* **destinations**: `["Zurich", "Interlaken", ...]` (unique list)
+* **date\_window**:
 
-* **title** — human label for the trip.
-* **destinations** — target cities/regions. The AI may choose a subset/sequence that fits constraints.
-* **date\_window** — acceptable time bounds and preferred length; the AI schedules within this.
-* **meeting\_strategy\_allowed** — where travelers are willing to meet (midpoint/en route/destination/one origin).
-* **meeting\_priority\_objective** — meeting-point optimization rule (e.g., *minimize total time & cost*).
-* **itinerary\_style** — *anchor\_city* (one base) or *multi-stop* (several bases).
-* **min\_time\_per\_stop\_hours** — minimum dwell time so we don’t rush.
-* **luggage** — carry-on only and special gear (affects transport and hotel choices).
-* **co2\_preference** — push greener routes if ties are close.
-* **tradeoff\_weights** — what to optimize globally (sum ≈ 1).
-* **hard\_constraints** — strict caps (daily travel hours, transfers, time windows, room setup).
-* **output\_preferences** — formatting for the chat; currency/units for prices/distances.
+  * `earliest_departure` / `latest_return` (ISO dates)
+  * `preferred_trip_length_days` (hint; not hard constraint)
+  * `blackout_dates` (hard avoid)
+* **meeting\_strategy\_allowed**: e.g., `at_destination`, `en_route_midpoint`, `origin_A` — how people meet
+* **meeting\_priority\_objective**: minimize cost / time / both
+* **itinerary\_style**: `anchor_city` or `multi-stop`
+* **min\_time\_per\_stop\_hours**: do not schedule fly‑by stops
+* **luggage**: carry‑on only? special gear (camera, skis, poles…)
+* **co2\_preference**: whether eco impact should influence choices
+* **tradeoff\_weights**: normalized weights `{cost, time, comfort, scenery, co2}`
+* **hard\_constraints**: time windows, `max_daily_travel_hours`, `max_transfers`, `room_setup`
+* **output\_preferences**: detail level, currency, metric/imperial, post to chat
+
+> **Tip:** For intercontinental hops, your agent may choose to temporarily relax `max_daily_travel_hours` but must call it out in the plan.
 
 ---
 
-## `travelers[]` (per-person fields)
+## `travelers` (who is going)
 
-```json
-{
-  "name": "Traveler-12-0",
-  "rovermitra_contact": { "channel": "RoverMitra", "user_handle": "rm_ab12cd34" },
-  "home_base": {
-    "city": "Berlin",
-    "nearby_nodes": ["Berlin Hbf", "BER"],
-    "willing_radius_km": 60
-  },
-  "age": 27,
-  "gender": "Female",
-  "education": "Master",
-  "occupation": "Engineer",
-  "marital_status": "Single",
-  "learning_style": "Visual",
-  "humor_style": "Witty",
+Each traveler includes:
 
-  "budget": {
-    "type": "total",
-    "amount": 1200,
-    "currency": "EUR",
-    "split_rule": "each_own"
-  },
+* **home\_base**: `{city, nearby_nodes:["<City> Hbf", "IATA"], willing_radius_km}` → helps choose meet points
+* **demographics**: `age`, `gender`, `education`, `occupation`, `marital_status`
+* **styles**: `learning_style`, `humor_style`, `pace_and_interests.pace` (`relaxed|balanced|packed`)
+* **interests**: curated set like `mountains`, `museums`, `street food`, `photography`, …
+* **budget**: `{type: per_day|total, amount, currency, split_rule}`
+* **transport**: `{allowed_modes, max_transfers, max_leg_hours, night_travel_ok}`
+* **accommodation**: `{types, price_band, room_setup, must_haves}`
+* **diet\_health**: dietary tags, allergies, accessibility
+* **comfort**: `{risk_tolerance, noise_tolerance, cleanliness_preference}`
+* **work**: Wi‑Fi needs, online hours
+* **documents**: passport validity, visa status, insurance flag
+* **languages**: subset of country + English
+* **dealbreakers**: e.g., *no party hostels*, *no red‑eye*
 
-  "transport": {
-    "allowed_modes": ["train", "plane"],
-    "max_transfers": 2,
-    "max_leg_hours": 5,
-    "night_travel_ok": false
-  },
-
-  "accommodation": {
-    "types": ["hotel", "apartment"],
-    "price_band": "mid-range",
-    "room_setup": "twin",
-    "must_haves": ["wifi", "near_station"]
-  },
-
-  "pace_and_interests": {
-    "pace": "balanced",
-    "top_interests": ["mountains", "lakes", "scenic trains", "photography"]
-  },
-
-  "diet_health": {
-    "diet": "vegetarian",
-    "allergies": [],
-    "accessibility": []
-  },
-
-  "comfort": {
-    "risk_tolerance": "low",
-    "noise_tolerance": "low",
-    "cleanliness_preference": "high"
-  },
-
-  "work": {
-    "hours_online_needed": 1,
-    "fixed_meetings": ["2025-09-18T17:00+02:00"],
-    "wifi_quality_needed": "good"
-  },
-
-  "documents": {
-    "passport_valid_until": "2030-03-15",
-    "visa_status": "Schengen OK",
-    "insurance": true
-  },
-
-  "languages": ["en", "de"],
-  "dealbreakers": ["no red-eye travel", "no >2 transfers"]
-}
-```
-
-**Why these matter:**
-
-* **home\_base / nearby\_nodes** — starting points for routing (e.g., Berlin Hbf vs BER).
-* **budget** — **per\_day** or **total**, with currency and cost-split rule.
-* **transport** — allowed modes + transfer/time caps; the AI avoids itineraries that violate these.
-* **accommodation** — types/price band/room setup/must-haves ensure realistic hotel picks.
-* **pace\_and\_interests** — “packed” vs “relaxed” and what to do (mountains, museums, etc.).
-* **diet\_health / comfort** — filters for restaurants, safety/risk, noise, cleanliness.
-* **work** — when they must be online; keeps travel off those slots.
-* **documents** — visa/insurance checks; alerts if invalid.
-* **dealbreakers** — hard NOs (override softer preferences).
-
-> Note: About **20–25%** of groups are intentionally “lean” (some optional fields missing) to simulate real-world input. The planner must handle missing data gracefully (ask follow-ups or assume defaults).
+> **Lean profiles** randomly omit some fields to test fallback behavior (e.g., infer price band from cohort).
 
 ---
 
-## Example: One real request (Berlin + Frankfurt → Switzerland)
+## `draft_plan` (offers your agent can reason over)
 
-**RoverMitra user message** (free text):
-
-> “I’m in **Berlin** near **Berlin Hbf**. My friend is in **Frankfurt** near **Frankfurt Hbf**. We want a **7-day** Switzerland trip next month, **mid-range budget**, we prefer **trains**, and we’d like to **meet at a point that minimizes total time & cost**, then travel together. Interests: **mountains, lakes, short hikes, scenic trains, photography**. Please plan day-by-day with hotels near stations.”
-
-**What we store** (simplified):
-
-```json
-{
-  "group_id": "f3c7...4e",
-  "rovermitra_chat": { "room_id": "rmr_8b91a2f3d4", "created_at": "2025-08-10T13:11:00Z" },
-  "trip_context": {
-    "title": "Alpine Week",
-    "destinations": ["Zurich", "Lucerne", "Interlaken", "Zermatt"],
-    "date_window": {
-      "earliest_departure": "2025-09-15",
-      "latest_return": "2025-09-22",
-      "preferred_trip_length_days": 7,
-      "blackout_dates": []
-    },
-    "meeting_strategy_allowed": ["en_route_midpoint","at_destination","origin_A","origin_B"],
-    "meeting_priority_objective": "minimize_total_travel_time_and_cost",
-    "itinerary_style": "multi-stop",
-    "min_time_per_stop_hours": 24,
-    "luggage": { "carry_on_only": true, "special_gear": ["camera"] },
-    "co2_preference": true,
-    "tradeoff_weights": { "cost": 0.35, "time": 0.25, "comfort": 0.20, "scenery": 0.15, "co2": 0.05 },
-    "hard_constraints": {
-      "earliest_departure_time_local": "08:30",
-      "latest_arrival_time_local": "21:30",
-      "max_daily_travel_hours": 6,
-      "max_transfers": 2,
-      "room_setup": "twin"
-    },
-    "output_preferences": { "detail_level": "day-by-day", "include_booking_links": true, "currency": "EUR", "units": "metric", "share_to_rovermitra_chat": true }
-  },
-  "travelers": [
-    {
-      "name": "Abdul",
-      "rovermitra_contact": { "channel": "RoverMitra", "user_handle": "rm_abdul" },
-      "home_base": { "city": "Berlin", "nearby_nodes": ["Berlin Hbf","BER"], "willing_radius_km": 60 },
-      "budget": { "type": "total", "amount": 1200, "currency": "EUR", "split_rule": "each_own" },
-      "transport": { "allowed_modes": ["train"], "max_transfers": 2, "max_leg_hours": 5, "night_travel_ok": false },
-      "accommodation": { "types": ["hotel"], "price_band": "mid-range", "room_setup": "twin", "must_haves": ["wifi","near_station"] },
-      "pace_and_interests": { "pace": "balanced", "top_interests": ["mountains","lakes","scenic trains","photography"] },
-      "languages": ["en","de"],
-      "documents": { "passport_valid_until": "2029-11-01", "visa_status": "Schengen OK", "insurance": true },
-      "dealbreakers": ["no overnight trains"]
-    },
-    {
-      "name": "Sara",
-      "rovermitra_contact": { "channel": "RoverMitra", "user_handle": "rm_sara" },
-      "home_base": { "city": "Frankfurt", "nearby_nodes": ["Frankfurt Hbf","FRA"], "willing_radius_km": 40 },
-      "budget": { "type": "total", "amount": 1300, "currency": "EUR", "split_rule": "each_own" },
-      "transport": { "allowed_modes": ["train"], "max_transfers": 2, "max_leg_hours": 4.5, "night_travel_ok": false },
-      "accommodation": { "types": ["hotel"], "price_band": "mid-range", "room_setup": "twin", "must_haves": ["quiet_room","wifi"] },
-      "pace_and_interests": { "pace": "balanced", "top_interests": ["lakes","short hikes","old towns","photography"] },
-      "languages": ["en","de"],
-      "documents": { "passport_valid_until": "2030-03-15", "visa_status": "Schengen OK", "insurance": true }
-    }
-  ]
-}
-```
+* **meeting\_plan**: chosen meet city + rationale
+* **itinerary**: day-by-day skeleton `{date, base, plan}` → agent expands with booked items
+* **intercity\_ground\_offers**: trains between consecutive destinations, with realistic durations & CO₂
+* **flight\_offers**: for **each traveler**, candidate outbound & return flights (IATA times, durations, cabin, bag, CO₂, price)
+* **chosen\_flights**: the cheapest pair per traveler (baseline the agent can override)
+* **hotel\_inventory**: per city, 4–7 options (stars, price, distance to station, amenities)
+* **hotel\_reservations**: first-pass holds (status `hold`)
+* **restaurant\_inventory**: per city, 6–10 options (cuisine, price, dietary tags)
+* **restaurant\_reservations**: 19:30 holds (status `hold`)
+* **activities\_inventory**: 3–6 options aligned to group interests (viewpoints, hikes, museums…)
+* **hints**: simple seasonal/safety nudges
 
 ---
 
-## How the AI uses this
+## Realism guarantees
 
-1. **Meeting point selection**
-
-   * Evaluate train routes: Berlin→X, Frankfurt→X for candidate X ∈ {Basel, Zurich, Bern…}.
-   * Optimize `meeting_priority_objective` with `tradeoff_weights` and `hard_constraints` (max transfers, time windows).
-   * Choose **Basel SBB** or **Zurich HB** in many Germany→CH cases.
-
-2. **Routing & timing**
-
-   * Build **door-to-door** segments that respect earliest departure and latest arrival windows; ensure ≤ `max_transfers`, `max_daily_travel_hours`.
-
-3. **Stay pattern**
-
-   * If `itinerary_style=multi-stop`, allocate minimum `min_time_per_stop_hours` per base.
-   * If carry-on only, avoid routes with luggage hassles.
-
-4. **Hotels & activities**
-
-   * Filter by `accommodation.price_band`, `room_setup`, `must_haves`, and near-station preference.
-   * Choose sights & experiences aligned with `pace_and_interests` and **diet/health**.
-
-5. **CO₂ preference & costs**
-
-   * Prefer rail when differences are acceptable; show cost/time trade-offs.
-
-6. **Output**
-
-   * Post an **itinerary block** in the **RoverMitra room** with bookable links; handle edits iteratively.
+* Cities always match their countries; IATA codes are plausible
+* Languages seeded from country + English
+* Budgets, star levels, distances, durations, and CO₂ are within human‑plausible ranges
+* Group sizes follow a realistic distribution (solo and pairs most common)
 
 ---
 
-## Example AI output (what teammates should expect)
+## Rich vs Lean
 
-**(posted in RoverMitra room `rmr_8b91a2f3d4`)**
-
-```json
-{
-  "meeting_plan": {
-    "meet_at": "Basel SBB",
-    "rationale": "Minimizes combined travel time and cost by train within 2 transfers each."
-  },
-  "routes": [
-    {
-      "traveler": "Abdul",
-      "segments": [
-        {"from": "Berlin Hbf", "to": "Basel SBB", "mode": "train", "transfers": 2, "duration_h": 7.8, "depart_after": "08:30"}
-      ]
-    },
-    {
-      "traveler": "Sara",
-      "segments": [
-        {"from": "Frankfurt Hbf", "to": "Basel SBB", "mode": "train", "transfers": 0, "duration_h": 3.0}
-      ]
-    }
-  ],
-  "itinerary": [
-    {"day": 1, "base": "Interlaken", "plan": "Arrive Basel, coffee buffer, continue together to Interlaken; evening lakeside walk."},
-    {"day": 2, "base": "Interlaken", "plan": "Lauterbrunnen–Mürren loop; short hikes; photography spots."},
-    {"day": 3, "base": "Interlaken", "plan": "Lake Brienz boat + Harder Kulm; sunset photos."},
-    {"day": 4, "base": "Lucerne", "plan": "Scenic Brünig line; Old Town; Chapel Bridge."},
-    {"day": 5, "base": "Lucerne", "plan": "Mount Rigi (easy summit) or Pilatus; return to Lucerne."},
-    {"day": 6, "base": "Zurich", "plan": "Short transfer to Zurich; Bahnhofstrasse & ETH viewpoint."},
-    {"day": 7, "base": "Zurich", "plan": "Depart home by train, within latest-arrival window."}
-  ],
-  "hotels": [
-    {"city": "Interlaken", "near_station": true, "price_band": "mid-range", "room_setup": "twin", "must_haves": ["wifi","quiet_room"]},
-    {"city": "Lucerne", "near_station": true, "price_band": "mid-range", "room_setup": "twin"},
-    {"city": "Zurich", "near_station": true, "price_band": "mid-range", "room_setup": "twin"}
-  ],
-  "notes": [
-    "All segments respect max 2 transfers and daily travel ≤ 6 hours.",
-    "CO₂ preference honored by prioritizing rail.",
-    "Booking links attached; adjust dates or budget in this thread to replan."
-  ]
-}
-```
-
-> The visual/chat rendering can be richer in-app (cards, buttons). The JSON above is the **logical payload** the backend can also log.
+* **Rich**: full preferences + constraints → ideal for training the “happy path”
+* **Lean**: 20–25% of fields missing or simplified → ideal for testing inference, defaults, and LLM recovery
 
 ---
 
-## Prompt template (for our planner agent)
+## Using this with LLM/agents
 
-Use this as a **system+user prompt** to the LLM when planning:
+Your pipeline typically looks like:
 
-```
-SYSTEM
-You are RoverMitra’s expert travel-planning agent. Produce a realistic, bookable plan that:
-- Chooses a meeting point using the group’s meeting_strategy_allowed and meeting_priority_objective,
-- Optimizes using tradeoff_weights and respects hard_constraints,
-- Builds door-to-door rail/air/bus segments within time windows and transfer caps,
-- Selects hotels near transport nodes matching accommodation preferences,
-- Proposes day-by-day activities aligned with pace_and_interests and diet/health,
-- Prefers greener routes when co2_preference is true,
-- Returns valid JSON with keys: meeting_plan, routes, itinerary, hotels, notes.
+1. **Grounding**: read a group → summarize constraints & preferences per traveler
+2. **Meetpoint search**: if origins differ, consider `en_route_midpoint` vs `at_destination` against tradeoff weights
+3. **Routing**: pick long‑haul flights and intercity trains satisfying `hard_constraints`
+4. **Lodging**: select hotels by `price_band`, distance to station, and `must_haves`
+5. **Dining**: match dietary tags
+6. **Activities**: pick options aligned with shared interests & pace
+7. **Explain**: produce a short rationale tied to weights & constraints
+8. **Post** to `rovermitra_chat.room_id` with proposed plan & book/confirm actions
 
-USER
-Here is the trip request as JSON (trip_context + travelers + rovermitra_chat):
+### Example LLM prompt (trip planner)
 
-<PASTE GROUP JSON HERE>
+> **System**: You are RoverMitra’s trip‑planning agent. Read the group JSON and propose an itinerary that maximizes the given tradeoff weights while respecting hard constraints. If a constraint must be relaxed (e.g., intercontinental flight > max\_daily\_travel\_hours), flag the exception explicitly and justify.
+>
+> **User**: Here’s our group JSON. Suggest the best meet strategy, flights, hotels, and a day‑by‑day plan. Keep the tone friendly and actionable. Include 2–3 alternatives only where meaningful.
 
-Return only JSON (no prose).
-```
+### Example user ask → friendly answer
 
----
+**User**: “I’m in **Berlin (BER)**, my friend is in **Frankfurt (FRA)**. We want to travel **Apr 8–14** to **Switzerland** with carry‑on only, relaxed pace, and a budget hotel near the station. Please plan and show the best meet point.”
 
-## Common edge cases & how to read them
-
-* **Single traveler** (group size = 1): The AI skips “meeting plan” and builds a solo door-to-door plan.
-* **Missing optional fields** (lean profiles): The AI assumes defensible defaults (e.g., medium pace, rail for EU) or asks clarifying questions in the RoverMitra chat.
-* **Conflicting constraints** (e.g., max\_transfers=0 but train-only to a remote spot): The AI posts alternatives with trade-offs.
-* **Budget type**:
-
-  * `per_day` → multiply by trip length for feasibility checks.
-  * `total` → treat as cap for all segments + hotels + activities.
+**Agent**: “Great choice! **Meet in Zurich** (shortest combined travel time). Fly **BER→ZRH** for you and **FRA→ZRH** for your friend, both arriving before **16:00**. I’ve held **Zurich Central Hotel (3★, 450m to HB)**. Day‑by‑day: Day 1 Old Town + lake sunset; Day 2 Lucerne day trip (scenic rail); Day 3 Uetliberg viewpoints + fondue; Day 4 Rhine Falls stopover; Day 5 checkout and return flights ≤ 20:00. All within your carry‑on and budget settings—want me to book?”
 
 ---
 
-## Quick glossary
+## Data dictionary (selected)
 
-* **Meeting strategy**: where the group unifies (midpoint, at destination, one origin).
-* **Anchor city**: single base with day trips.
-* **Multi-stop**: multiple bases (move hotels).
-* **Tradeoff weights**: scalar preferences for cost/time/comfort/scenery/CO₂.
-* **Hard constraints**: strict limits the plan may **not** violate.
+**Traveler**
+
+* `home_base.city` — origin city (valid in catalog)
+* `home_base.nearby_nodes` — major station + nearest airport
+* `budget.amount` — per‑day or total budget per person (currency inferred by country)
+* `transport.allowed_modes` — subset of `[train, plane, bus]`
+* `accommodation.must_haves` — features your ranker should respect (e.g., `near_station`, `wifi`)
+* `diet_health.diet` — dietary anchor for restaurants
+* `dealbreakers` — hard filters
+
+**Trip Context**
+
+* `meeting_strategy_allowed` — how they’re willing to meet
+* `tradeoff_weights` — objective function (sum≈1.0)
+* `hard_constraints.max_daily_travel_hours` — apply to ground hops; long‑hauls can be exception‑flagged
+
+**Draft Plan**
+
+* `flight_offers` — candidates per traveler
+* `chosen_flights` — baseline selection (cheapest)
+* `hotel_inventory.options[].distance_to_station_km` — good proxy for convenience
+* `restaurant_inventory` & `activities_inventory` — content to personalize day plans
 
 ---
 
-## TL;DR for coworkers
+## Extending to live providers
 
-* The JSON gives the AI **all it needs** to:
+Replace generators with API adapters:
 
-  * pick a **meeting plan**,
-  * route **door-to-door** within constraints,
-  * book **hotels** that actually fit,
-  * build a **day-by-day** that matches what people enjoy,
-  * and post it neatly in the **RoverMitra chat**.
+* Flights: Skyscanner/Amadeus/Sabre (IATA times, bag, CO₂)
+* Rail: RailEurope/Deutsche Bahn APIs
+* Hotels: Booking/Amadeus/Lodgify
+* Dining: Google Places/Yelp/HappyCow (for diet tags)
+* Activities: Viator/GetYourGuide/AYR
 
-* When reading a request:
+Maintain the **same JSON shape** so your LLM prompts remain stable.
 
-  1. Scan `trip_context` for dates, destinations, constraints.
-  2. Check each traveler’s **home\_base**, **transport caps**, and **dealbreakers**.
-  3. If something’s missing, the AI can **ask in the room** or assume defaults for a first draft.
+---
 
-That’s it—this is the contract between our product and the planning agent.
+## Troubleshooting
+
+* **Empty/odd city**: ensure the city exists in `COUNTRIES` and has at least one IATA code
+* **Huge outputs**: reduce `N_GROUPS`, or sample groups before feeding to LLM
+* **Token limits**: sample candidate inventories (e.g., 3 flights, 3 hotels) before sending to the model
+* **Date math** off by one: remember `latest_return` is exclusive vs inclusive depending on your UI semantics
+
+---
+
+## License & attribution
+
+Synthetic data for internal testing at **RoverMitra**. Airport codes, durations, prices and CO₂ are plausible but **not real**. Replace with live data sources for production.
+
+---
+
+## Changelog
+
+* **v2**: Added flight/train/hotel/restaurant/activity inventories; expanded countries; improved realism; rich/lean profiles; day-by-day skeleton.
