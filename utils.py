@@ -1,20 +1,30 @@
-# utils.py
+# utils.py (updated LLM matching)
+
 import json
-import tempfile
-import os
 import re
 import random
 import openai
 
+import os
+import json
+import tempfile
+
+def safe_write_json(data, path):
+    """
+    Atomic JSON write to avoid file corruption.
+    """
+    dirpath = os.path.dirname(path)
+    os.makedirs(dirpath, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", delete=False, dir=dirpath, encoding="utf-8") as tf:
+        json.dump(data, tf, indent=4, ensure_ascii=False)
+        tempname = tf.name
+    os.replace(tempname, path)
+
+
 # ----------------------------
-# JSON helpers & safe write
+# JSON helpers
 # ----------------------------
 def parse_llm_json(raw_content):
-    """
-    Safely parse JSON from a string or dict. Returns the parsed object.
-    Tries to extract the first JSON object/array if raw text is noisy.
-    If top-level is a single-key dict whose value is a list, unwrap it.
-    """
     if isinstance(raw_content, (dict, list)):
         data = raw_content
     else:
@@ -33,35 +43,43 @@ def parse_llm_json(raw_content):
             return v
     return data
 
-def safe_write_json(data, path):
-    """
-    Atomic JSON write to avoid file corruption.
-    """
-    dirpath = os.path.dirname(path)
-    os.makedirs(dirpath, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", delete=False, dir=dirpath, encoding="utf-8") as tf:
-        json.dump(data, tf, indent=4, ensure_ascii=False)
-        tempname = tf.name
-    os.replace(tempname, path)
-
 # ----------------------------
-# NO HARDCODED PREFILTERING
+# Candidate prefiltering
 # ----------------------------
-def prefilter_candidates(new_user, candidates, max_results=None):
+def prefilter_candidates(candidates, max_results=20):
     """
-    No hard rules. Return candidates as-is (optionally random-sampled to control token size).
-    This avoids brittle heuristics (e.g., exact-match interests/languages).
+    Randomly sample candidates to reduce token usage.
     """
     if max_results is None or max_results >= len(candidates):
         return candidates
-    # random sample to keep prompt size manageable
     return random.sample(candidates, k=max_results)
 
+def summarize_candidates(candidates, max_interests=5, max_languages=3):
+    """
+    Keep only essential info per candidate to reduce tokens.
+    """
+    summarized = []
+    for u in candidates:
+        s = {
+            "id": u.get("id"),
+            "name": u.get("name"),
+            "age": u.get("age"),
+            "gender": u.get("gender"),
+            "location": u.get("location"),
+            "country": u.get("country"),
+            "occupation": u.get("occupation"),
+            "interests": (u.get("interests") or [])[:max_interests],
+            "languages": (u.get("languages") or [])[:max_languages],
+            "bio": (u.get("bio") or "")[:200],  # truncate long bios
+            "personality": {k: round(v,2) for k,v in (u.get("personality") or {}).items()},
+        }
+        summarized.append(s)
+    return summarized
+
 # ----------------------------
-# Prompt builder (LLM does all)
+# Profile -> text
 # ----------------------------
 def profile_to_natural_text(u):
-    # Compact, but includes enough signal for LLM
     lines = []
     lines.append(f"Name: {u.get('name','')}")
     lines.append(f"Age: {u.get('age','')}")
@@ -78,74 +96,49 @@ def profile_to_natural_text(u):
     if bio: lines.append(f"Bio: {bio}")
     pers = u.get('personality', {}) or {}
     if pers:
-        # only show what exists; values could be 0..1 or 1..10 normalized
-        traits = ", ".join([f"{k}:{round(float(v),2)}" for k,v in pers.items() if v is not None])
-        if traits:
-            lines.append(f"Personality: {traits}")
-    # travel-specific fields (if your dataset includes them later)
-    tp = u.get('travel_preferences', {}) or {}
-    if tp:
-        for k, v in tp.items():
-            if isinstance(v, list):
-                v = ", ".join(v)
-            lines.append(f"{k}: {v}")
+        traits = ", ".join([f"{k}:{v}" for k,v in pers.items() if v is not None])
+        if traits: lines.append(f"Personality: {traits}")
     return "\n".join(lines)
 
+# ----------------------------
+# Build prompt
+# ----------------------------
 def build_llm_prompt(new_user, db_users, top_k=5):
-    """
-    Holistic, psychologist-style, travel context; short, second-person explanations;
-    only >= 75%; percentage score string.
-    """
     text = (
-        "You are a psychologist and travel-match expert. Given a query user and candidate profiles, "
-        "recommend only those candidates with a compatibility of at least 75% for being an excellent travel companion. "
-        "Think holistically: personality dynamics, emotional style, interests/activities, values and life priorities, "
-        "learning/communication styles, travel style and pace, budget and accommodation fit, destination types, planning style, "
-        "money attitude, sleep/chronotype, cleanliness/organization, diet/substances, safety/risk tolerance, work mode, "
-        "cultural/religious needs, languages, and explicit dealbreakers.\n\n"
-        "Age policy: prefer matches within each person's stated age_preference or within their age_gap_tolerance. "
-        "If missing, infer cautiously from openness/adaptability/maturity; avoid large gaps unless both have high age_openness.\n\n"
-        "Trip context: compatibility should hold for trips from a day to many months and across multiple countries. "
-        "Favor pairs who can realistically enjoy shared activities, handle stress and logistics together, and balance each other's styles "
-        "without persistent friction.\n\n"
+        "You are a psychologist and travel-match expert. Assess compatibility for being an excellent travel companion.\n\n"
         "OUTPUT RULES:\n"
         "1. Output a JSON array ONLY.\n"
-        "2. Each object must have keys: name, explanation, compatibility_score.\n"
-        "3. compatibility_score must be an integer percentage string ending with '%', e.g., \"82%\".\n"
-        "4. Do not invent people not in the candidate list.\n"
+        "2. Each object must have keys: name, explanation, compatibility_score (0.0-1.0).\n"
         "Query User Profile:\n"
-    ).format(k=top_k)
-
+    )
     text += profile_to_natural_text(new_user) + "\n\n"
-
     text += "Candidate Profiles:\n"
     for i, u in enumerate(db_users, 1):
         text += f"\n[{i}]\n" + profile_to_natural_text(u)
-
-    text += (
-        "\n\nInstructions:\n"
-        "1) Drop candidates that violate hard dealbreakers or yield < 75% compatibility.\n"
-        "2) Choose realistic, sustainable pairings (not just superficial similarity).\n"
-        "3) Output the top {k} as a JSON array with EXACT keys: name, explanation, compatibility_score (e.g., \"79%\").\n"
-    ).format(k=top_k)
-
+    text += f"\n\nInstructions:\nOutput top {top_k} matches only."
     return text
 
 # ----------------------------
 # LLM call
 # ----------------------------
-def llm_find_matches(new_user, db_users, top_k=5):
+def llm_find_matches(new_user, db_users, top_k=5, max_candidates=20):
     """
-    Calls OpenAI to get matches; expects JSON array as per the prompt.
+    Prefilter and summarize candidates to avoid token overflow.
     """
     if not openai.api_key:
-        print("Error: OPENAI_API_KEY not provided (env var 'API').")
+        print("Error: OPENAI_API_KEY not provided")
         return []
 
-    prompt = build_llm_prompt(new_user, db_users, top_k=top_k)
+    # 1. Prefilter
+    candidates = prefilter_candidates(db_users, max_results=max_candidates)
+
+    # 2. Summarize
+    candidates_summarized = summarize_candidates(candidates)
+
+    # 3. Build prompt
+    prompt = build_llm_prompt(new_user, candidates_summarized, top_k=top_k)
 
     try:
-        # Using Chat Completions with function-like schema is optional; here we just ask for JSON directly.
         resp = openai.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
@@ -155,11 +148,9 @@ def llm_find_matches(new_user, db_users, top_k=5):
             temperature=0.3,
             max_tokens=1800,
         )
-
         content = resp.choices[0].message.content
         parsed = parse_llm_json(content)
 
-        # Ensure it's a list of dicts with the exact keys and >= 75%
         matches = []
         if isinstance(parsed, list):
             for m in parsed:
@@ -167,15 +158,15 @@ def llm_find_matches(new_user, db_users, top_k=5):
                     continue
                 name = m.get("name")
                 explanation = m.get("explanation")
-                score_str = m.get("compatibility_score", "")
-                if not (name and explanation and isinstance(score_str, str) and score_str.endswith("%")):
+                score_val = m.get("compatibility_score")
+                if not (name and explanation and isinstance(score_val, (int, float))):
                     continue
-                try:
-                    pct = int(score_str.strip().replace("%", ""))
-                except ValueError:
-                    continue
-                if pct >= 75:
-                    matches.append({"name": name, "explanation": explanation, "compatibility_score": f"{pct}%"})
+                if 0.0 <= score_val <= 1.0:
+                    matches.append({
+                        "name": name,
+                        "explanation": explanation,
+                        "compatibility_score": float(score_val)
+                    })
         return matches
     except Exception as e:
         print(f"Error during API call or parsing: {e}")

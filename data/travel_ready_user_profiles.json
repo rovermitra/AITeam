@@ -1,0 +1,82 @@
+[
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "db3ca11e-fdfa-43c5-a586-f65db1c2fd4e",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    },
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "7a36664f-4f39-40ad-a1bd-ce270eff510c",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    },
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "b0afe763-c692-40e6-a700-c0b92ed004a7",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    },
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "91e2b3c5-d233-4c9b-b3f5-047e4843b1a3",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    }
+]

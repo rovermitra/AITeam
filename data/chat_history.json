@@ -1,0 +1,18 @@
+{
+    "d07a5c56-df6e-4959-8f3e-a16e7951478d": {
+        "users": [
+            "91e2b3c5-d233-4c9b-b3f5-047e4843b1a3",
+            "db3ca11e-fdfa-43c5-a586-f65db1c2fd4e"
+        ],
+        "messages": [
+            {
+                "sender": "Ali",
+                "message": "Do you wanna travel to Dresden"
+            },
+            {
+                "sender": "Ali",
+                "message": "I also want to travel to Dresden"
+            }
+        ]
+    }
+}
