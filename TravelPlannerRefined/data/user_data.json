@@ -1,0 +1,28 @@
+[
+    {
+        "id": 1,
+        "name": "Alice",
+        "origin": "NYC",
+        "destinations": ["Paris", "Rome", "Berlin"],
+        "travel_dates": ["2025-09-10", "2025-09-18"],
+        "budget": 2500,
+        "preferences": {
+            "airline": "Any",
+            "class": "Economy",
+            "activities": ["Sightseeing", "Museum"]
+        }
+    },
+    {
+        "id": 2,
+        "name": "Bob",
+        "origin": "NYC",
+        "destinations": ["London", "Paris"],
+        "travel_dates": ["2025-10-01", "2025-10-10"],
+        "budget": 2000,
+        "preferences": {
+            "airline": "British Airways",
+            "class": "Economy",
+            "activities": ["Sightseeing", "Food"]
+        }
+    }
+]
