@@ -101,7 +101,8 @@ with st.sidebar:
             if st.session_state.matches:
                 match_names = [match['name'] for match in st.session_state.matches]
                 selected_buddy_name = st.selectbox("Select a Buddy to Plan With", match_names)
-                st.session_state.buddy_user = next((user for user in all_users if user['name'] == selected_buddy_name), None)
+                st.session_state.buddy_user = next((user for user in st.session_state.matches if user['name'] == selected_buddy_name), None)
+
             else:
                 st.info("Click 'Match Me!' to find travel partners.")
     
@@ -164,22 +165,29 @@ if st.session_state.main_user and st.session_state.buddy_user:
         
         render_chat_interface(st.session_state.chat_history)
 
+
+
+
+########################
+
         if user_input := st.chat_input("Say something to start planning..."):
             st.session_state.chat_history.append({"role": "user", "content": user_input})
             
             with st.spinner(f"{buddy_user['name']} is typing..."):
-                # --- UPDATED: Use the selected model from the sidebar ---
-                ai_response = chat_with_ai(
-                    user_input, 
-                    st.session_state.chat_history, 
-                    main_user, 
-                    buddy_user, 
-                    model_choice=st.session_state.model_choice
-                )
-                st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
+                if main_user and buddy_user:
+                    ai_response = chat_with_ai(
+                        user_input,
+                        st.session_state.chat_history,
+                        main_user,
+                        buddy_user,
+                        flight_data,
+                        model_choice=st.session_state.model_choice
+                    )
+                    
+                    # Append AI response to chat history
+                    st.session_state.chat_history.append({"role": "assistant", "content": ai_response})
             
             st.rerun()
 
 else:
     st.info("⬅️ Please select your profile and a travel buddy from the sidebar to get started.")
-

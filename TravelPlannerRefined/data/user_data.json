@@ -9,20 +9,150 @@
         "preferences": {
             "airline": "Any",
             "class": "Economy",
-            "activities": ["Sightseeing", "Museum"]
+            "activities": ["Sightseeing", "Museum", "Art"]
         }
     },
     {
         "id": 2,
         "name": "Bob",
         "origin": "NYC",
-        "destinations": ["London", "Paris"],
+        "destinations": ["London", "Paris", "Amsterdam"],
         "travel_dates": ["2025-10-01", "2025-10-10"],
         "budget": 2000,
         "preferences": {
             "airline": "British Airways",
             "class": "Economy",
-            "activities": ["Sightseeing", "Food"]
+            "activities": ["Sightseeing", "Food", "History"]
+        }
+    },
+    {
+        "id": 3,
+        "name": "Charlie",
+        "origin": "LAX",
+        "destinations": ["Tokyo", "Berlin"],
+        "travel_dates": ["2025-11-05", "2025-11-15"],
+        "budget": 3500,
+        "preferences": {
+            "airline": "ANA",
+            "class": "Business",
+            "activities": ["Food", "Technology", "Temples"]
+        }
+    },
+    {
+        "id": 4,
+        "name": "Diana",
+        "origin": "LHR",
+        "destinations": ["Rome", "Athens", "Istanbul"],
+        "travel_dates": ["2025-09-20", "2025-09-30"],
+        "budget": 2200,
+        "preferences": {
+            "airline": "Any",
+            "class": "Economy",
+            "activities": ["History", "Museum", "Beach"]
+        }
+    },
+    {
+        "id": 5,
+        "name": "Ethan",
+        "origin": "SYD",
+        "destinations": ["Bali", "Bangkok"],
+        "travel_dates": ["2026-01-15", "2026-01-25"],
+        "budget": 1800,
+        "preferences": {
+            "airline": "Qantas",
+            "class": "Economy",
+            "activities": ["Beach", "Hiking", "Nightlife"]
+        }
+    },
+    {
+        "id": 6,
+        "name": "Fiona",
+        "origin": "LAX",
+        "destinations": ["Paris", "Amsterdam"],
+        "travel_dates": ["2025-10-02", "2025-10-12"],
+        "budget": 2800,
+        "preferences": {
+            "airline": "Air France",
+            "class": "Premium Economy",
+            "activities": ["Art", "Museum", "Shopping"]
+        }
+    },
+    {
+        "id": 7,
+        "name": "George",
+        "origin": "DXB",
+        "destinations": ["London", "NYC"],
+        "travel_dates": ["2025-12-01", "2025-12-10"],
+        "budget": 4000,
+        "preferences": {
+            "airline": "Emirates",
+            "class": "Business",
+            "activities": ["Shopping", "Fine Dining", "Theater"]
+        }
+    },
+    {
+        "id": 8,
+        "name": "Hannah",
+        "origin": "BER",
+        "destinations": ["Rome", "Barcelona", "Lisbon"],
+        "travel_dates": ["2025-08-20", "2025-08-30"],
+        "budget": 1500,
+        "preferences": {
+            "airline": "Ryanair",
+            "class": "Economy",
+            "activities": ["Nightlife", "Beach", "Food"]
+        }
+    },
+    {
+        "id": 9,
+        "name": "Ian",
+        "origin": "LHR",
+        "destinations": ["Tokyo", "Seoul"],
+        "travel_dates": ["2025-11-10", "2025-11-22"],
+        "budget": 3200,
+        "preferences": {
+            "airline": "British Airways",
+            "class": "Economy",
+            "activities": ["Technology", "Food", "Hiking"]
+        }
+    },
+    {
+        "id": 10,
+        "name": "Jasmine",
+        "origin": "SFO",
+        "destinations": ["Bali", "Sydney"],
+        "travel_dates": ["2026-01-10", "2026-01-24"],
+        "budget": 3000,
+        "preferences": {
+            "airline": "Any",
+            "class": "Economy",
+            "activities": ["Beach", "Surfing", "Yoga"]
+        }
+    },
+    {
+        "id": 11,
+        "name": "Kevin",
+        "origin": "CDG",
+        "destinations": ["NYC", "Miami"],
+        "travel_dates": ["2025-12-15", "2025-12-28"],
+        "budget": 2600,
+        "preferences": {
+            "airline": "Air France",
+            "class": "Premium Economy",
+            "activities": ["Sightseeing", "Nightlife", "Art"]
+        }
+    },
+    {
+        "id": 12,
+        "name": "Laura",
+        "origin": "BER",
+        "destinations": ["Istanbul", "Cairo"],
+        "travel_dates": ["2025-10-20", "2025-10-30"],
+        "budget": 1900,
+        "preferences": {
+            "airline": "Turkish Airlines",
+            "class": "Economy",
+            "activities": ["History", "Bazaar", "Food"]
         }
     }
 ]
