@@ -1,0 +1,530 @@
+[
+<<<<<<< HEAD
+  {
+    "personality": {
+      "openness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "conscientiousness": 0.5
+    },
+    "id": "db3ca11e-fdfa-43c5-a586-f65db1c2fd4e",
+    "name": "Ali",
+    "age": 32,
+    "gender": "male",
+    "location": "Cottbus",
+    "country": "Germany",
+    "occupation": "cook",
+    "interests": [
+      "en"
+    ],
+    "languages": [],
+    "bio": ""
+  },
+  {
+    "personality": {
+      "openness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "conscientiousness": 0.5
+    },
+    "id": "7a36664f-4f39-40ad-a1bd-ce270eff510c",
+    "name": "Ali",
+    "age": 32,
+    "gender": "male",
+    "location": "Cottbus",
+    "country": "Germany",
+    "occupation": "cook",
+    "interests": [
+      "en"
+    ],
+    "languages": [],
+    "bio": ""
+  },
+  {
+    "personality": {
+      "openness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "conscientiousness": 0.5
+    },
+    "id": "b0afe763-c692-40e6-a700-c0b92ed004a7",
+    "name": "Ali",
+    "age": 32,
+    "gender": "male",
+    "location": "Cottbus",
+    "country": "Germany",
+    "occupation": "cook",
+    "interests": [
+      "en"
+    ],
+    "languages": [],
+    "bio": ""
+  },
+  {
+    "personality": {
+      "openness": 0.5,
+      "extraversion": 0.5,
+      "agreeableness": 0.5,
+      "conscientiousness": 0.5
+    },
+    "id": "91e2b3c5-d233-4c9b-b3f5-047e4843b1a3",
+    "name": "Ali",
+    "age": 32,
+    "gender": "male",
+    "location": "Cottbus",
+    "country": "Germany",
+    "occupation": "cook",
+    "interests": [
+      "en"
+    ],
+    "languages": [],
+    "bio": ""
+  },
+  {
+    "id": "u_local_a11e803e",
+    "name": "Areez",
+    "age": 23,
+    "gender": "Male",
+    "home_base": {
+      "city": "Wuzberg",
+      "country": "Germany",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en",
+      "si",
+      "ur"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "nature"
+    ],
+    "bio": "I am an AI ove to travel",
+    "travel_prefs": {
+      "pace": "relaxed",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "train",
+        "plane"
+      ],
+      "must_haves": [
+        "wifi"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 300,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "never"
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 1,
+      "wifi_quality_needed": "good"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": true,
+      "pre_meet_video_call_ok": true
+    }
+  },
+  {
+    "id": "u_local_1a9a21c8",
+    "name": "Ravi",
+    "age": 36,
+    "gender": "Male",
+    "home_base": {
+      "city": "Karachi",
+      "country": "Germany",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "stability",
+      "learning"
+    ],
+    "bio": "I am lawyer, and I want to go to historical places",
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "twin",
+      "transport_allowed": [
+        "train"
+      ],
+      "must_haves": [
+        "wifi"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 200,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "early bird",
+      "alcohol": "none",
+      "smoking": "occasionally"
+    },
+    "work": {
+      "remote_work_ok": true,
+      "hours_online_needed": 0,
+      "wifi_quality_needed": "good"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": true,
+      "pre_meet_video_call_ok": true
+    }
+  },
+  {
+    "id": "u_local_02098147",
+    "name": "Ali",
+    "age": -56,
+    "gender": "Male",
+    "home_base": {
+      "city": "Hyderabad",
+      "country": "India",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "stability",
+      "learning"
+    ],
+    "bio": "I am actor , I love to travel india and Austria",
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "bus"
+      ],
+      "must_haves": [
+        "wifi"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": -340,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "2"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "occasionally"
+    },
+    "work": {
+      "remote_work_ok": true,
+      "hours_online_needed": 0,
+      "wifi_quality_needed": "good"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": true,
+      "pre_meet_video_call_ok": true
+    }
+  },
+  {
+    "id": "u_local_c2a19e97",
+    "name": "Ali",
+    "age": -76,
+    "gender": "Male",
+    "home_base": {
+      "city": "Cottbus",
+      "country": "DE",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "stability",
+      "learning"
+    ],
+    "bio": "",
+    "travel_prefs": {
+      "pace": "relaxed",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "plane"
+      ],
+      "must_haves": [
+        "wifi"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": -45,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "3"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "never"
+    },
+    "work": {
+      "remote_work_ok": true,
+      "hours_online_needed": 0,
+      "wifi_quality_needed": "good"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": true,
+      "pre_meet_video_call_ok": true
+    }
+  },
+  {
+    "id": "u_local_346f8829",
+    "name": "Ayesh",
+    "age": 23,
+    "gender": "Male",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en",
+      "si",
+      "ur"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "budget-minded",
+      "nature"
+    ],
+    "bio": "I am AI Engineer , I love to travel historical places like in cologne ,dresden,austria",
+    "travel_prefs": {
+      "pace": "relaxed",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "car",
+        "bus"
+      ],
+      "must_haves": [
+        "private_bath"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 300,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "occasionally"
+    },
+    "work": {
+      "remote_work_ok": true,
+      "hours_online_needed": 1,
+      "wifi_quality_needed": "good"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": true,
+      "pre_meet_video_call_ok": true
+    }
+  }
+=======
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "db3ca11e-fdfa-43c5-a586-f65db1c2fd4e",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    },
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "7a36664f-4f39-40ad-a1bd-ce270eff510c",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    },
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "b0afe763-c692-40e6-a700-c0b92ed004a7",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    },
+    {
+        "personality": {
+            "openness": 0.5,
+            "extraversion": 0.5,
+            "agreeableness": 0.5,
+            "conscientiousness": 0.5
+        },
+        "id": "91e2b3c5-d233-4c9b-b3f5-047e4843b1a3",
+        "name": "Ali",
+        "age": 32,
+        "gender": "male",
+        "location": "Cottbus",
+        "country": "Germany",
+        "occupation": "cook",
+        "interests": [
+            "en"
+        ],
+        "languages": [],
+        "bio": ""
+    }
+>>>>>>> 0e2f315be2dc8ded97ab57f9ae3cf19467983165
+]
