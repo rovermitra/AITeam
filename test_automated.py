@@ -49,7 +49,7 @@ def import_pipeline_module(mod_name: str):
     return mod
 
 def demo_test_users():
-    """Three varied profiles to exercise the pipeline."""
+    """Three varied profiles to exercise the pipeline with gender preferences."""
     return [
         {
             'id': 'test_user_1',
@@ -60,12 +60,15 @@ def demo_test_users():
             'languages': ['en', 'de'],
             'interests': ['museum hopping', 'architecture walks', 'history sites'],
             'values': ['adventure', 'culture'],
-            'bio': 'Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls',
+            'bio': 'Berlin-based traveler who loves history and architecture',
             'travel_prefs': {'pace': 'balanced'},
             'budget': {'amount': 150, 'currency': 'EUR'},
             'diet_health': {'diet': 'none'},
             'comfort': {'smoking': 'never', 'alcohol': 'moderate'},
             'work': {'remote_work_ok': False},
+            'companion_preferences': {
+                'genders_ok': ['Men']
+            },
             'privacy': {'share_home_city': True}
         },
         {
@@ -83,6 +86,9 @@ def demo_test_users():
             'diet_health': {'diet': 'vegetarian'},
             'comfort': {'smoking': 'never', 'alcohol': 'social'},
             'work': {'remote_work_ok': True},
+            'companion_preferences': {
+                'genders_ok': ['Women']
+            },
             'privacy': {'share_home_city': True}
         },
         {
@@ -94,12 +100,15 @@ def demo_test_users():
             'languages': ['en', 'de'],
             'interests': ['festivals', 'live music', 'beach days'],
             'values': ['adventure', 'community'],
-            'bio': 'Karachi student who loves music festivals and beach trips with only girls',
+            'bio': 'Karachi student who loves music festivals and beach trips',
             'travel_prefs': {'pace': 'packed'},
             'budget': {'amount': 80, 'currency': 'EUR'},
             'diet_health': {'diet': 'none'},
             'comfort': {'smoking': 'occasionally', 'alcohol': 'social'},
             'work': {'remote_work_ok': False},
+            'companion_preferences': {
+                'genders_ok': ["I'm open to travel with anyone"]
+            },
             'privacy': {'share_home_city': False}
         }
     ]

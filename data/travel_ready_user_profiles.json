@@ -2166,5 +2166,344 @@
     "privacy": {
       "share_home_city": true
     }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "u_local_767ef0d5",
+    "name": "Leone",
+    "age": 26,
+    "gender": "Female",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en"
+    ],
+    "interests": [
+      "history sites",
+      "coffee crawls",
+      "rooftop views",
+      "festivals"
+    ],
+    "values": [
+      "adventure",
+      "luxury-taste",
+      "nature"
+    ],
+    "bio": "Berlin-based night owl; relaxed pace, history + live music. I’m most comfortable traveling with German travelers.",
+    "travel_prefs": {
+      "pace": "relaxed",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "train",
+        "plane"
+      ],
+      "must_haves": [
+        "private_bath"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 400,
+      "currency": "EUR",
+      "split_rule": "custom"
+    },
+    "diet_health": {
+      "diet": "vegetarian",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "low",
+      "cleanliness_preference": "high",
+      "chronotype": "night owl",
+      "alcohol": "moderate",
+      "smoking": "never"
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 0,
+      "wifi_quality_needed": "excellent"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": false,
+      "pre_meet_video_call_ok": false
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Men"
+      ]
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "u_local_f6f10742",
+    "name": "Abdul Ghaffar Ansari",
+    "age": 25,
+    "gender": "Male",
+    "home_base": {
+      "city": "Cottbus",
+      "country": "Germany",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en",
+      "hi",
+      "si",
+      "ur"
+    ],
+    "interests": [
+      "history sites",
+      "city photography",
+      "street food",
+      "mountain hiking",
+      "beach days",
+      "old towns"
+    ],
+    "values": [
+      "budget-minded",
+      "luxury-taste",
+      "nature"
+    ],
+    "bio": "I am an AI Engineer , and I live in Cottbus near to Berlin, I love to meet new people who share ideas",
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "twin",
+      "transport_allowed": [
+        "train",
+        "plane"
+      ],
+      "must_haves": [
+        "near_station"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 300,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "low",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "occasionally"
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 1,
+      "wifi_quality_needed": "good"
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Men"
+      ]
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": false,
+      "pre_meet_video_call_ok": false
+    }
   }
 ]

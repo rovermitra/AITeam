@@ -487,7 +487,7 @@ TRIP_INTENTIONS = [
     "ski or snow trips","festival/ events chasing","history & museums track","road trips & scenic drives"
 ]
 COMPANION_TYPES = ["solo","pair","small group (3–4)","bigger group (5+)"]
-COMPANION_GENDER_PREF = ["any","men","women","nonbinary"]
+COMPANION_GENDER_PREF = ["I'm open to travel with anyone","Men","Women","Nonbinary travelers"]
 
 OPENING_MOVE_TEMPLATES = [
     "Window or aisle—and why?",

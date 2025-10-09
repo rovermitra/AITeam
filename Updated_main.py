@@ -285,6 +285,11 @@ def interactive_new_user() -> Dict[str, Any]:
     VALUES = ["adventure","stability","learning","family","budget-minded","luxury-taste","nature","culture","community","fitness","spirituality"]
     values = ask_multi("Choose 2–3", VALUES, 2, 3, default_idxs=[0,6])
 
+    print("\n— Travel companions —")
+    companion_pref = ask_choice("Who would you like to travel with?", 
+                               ["I'm open to travel with anyone", "Men", "Women", "Nonbinary travelers"], 
+                               "I'm open to travel with anyone")
+
     print("\n— Safety —")
     share_home_city = ask_yesno("OK to show your home city on profile?", True)
     pre_meet_video  = ask_yesno("Comfortable with a short pre-trip video call?", True)
@@ -328,6 +333,10 @@ def interactive_new_user() -> Dict[str, Any]:
             "remote_work_ok": remote_ok,
             "hours_online_needed": int(hours_online),
             "wifi_quality_needed": wifi_need
+        },
+
+        "companion_preferences": {
+            "genders_ok": [companion_pref]
         },
 
         "privacy": {
@@ -410,6 +419,31 @@ def gender_ok(query_gender: str, cand_mm: Dict[str,Any]) -> bool:
     qg = (query_gender or "").lower()
     return ("any" in allowed) or (qg in allowed)
 
+def companion_gender_ok(query_companion_pref: str, cand_user: Dict[str,Any]) -> bool:
+    """
+    Hard-coded filtering based on travel companion preferences.
+    If person wants to travel with men, only select men.
+    If person wants to travel with women, only select women.
+    If person wants to travel with anyone, anyone can be suggested.
+    If person wants to travel with nonbinary travelers, only select nonbinary.
+    """
+    if not query_companion_pref:
+        return True
+    
+    cand_gender = (cand_user.get("gender") or "").lower()
+    
+    # Map companion preferences to gender matching
+    if query_companion_pref.lower() == "i'm open to travel with anyone":
+        return True
+    elif query_companion_pref.lower() == "men":
+        return cand_gender in ["male", "man"]
+    elif query_companion_pref.lower() == "women":
+        return cand_gender in ["female", "woman"]
+    elif query_companion_pref.lower() == "nonbinary travelers":
+        return cand_gender in ["non-binary", "nonbinary", "other"]
+    
+    return True
+
 def langs_ok(query_langs: List[str], cand_mm: Dict[str,Any], cand_user: Dict[str,Any]) -> bool:
     lp = (cand_mm or {}).get("language_policy") or {}
     need = lp.get("min_shared_languages", 1)
@@ -440,11 +474,17 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
     q_langs = q.get("languages",[])
     q_budget = (q.get("budget") or {}).get("amount", 150)
     q_pace = (q.get("travel_prefs") or {}).get("pace","balanced")
+    
+    # Get companion preferences for hard-coded filtering
+    q_companion_prefs = q.get("companion_preferences", {})
+    q_companion_gender = q_companion_prefs.get("genders_ok", ["I'm open to travel with anyone"])[0] if q_companion_prefs.get("genders_ok") else "I'm open to travel with anyone"
+    
     for rec in pool:
         cu, cm = rec["user"], rec["mm"]
         if not langs_ok(q_langs, cm, cu):           continue
         if not age_ok(q_age, cu, cm):               continue
         if not gender_ok(q_gender, cm):             continue
+        if not companion_gender_ok(q_companion_gender, cu): continue  # Hard-coded companion filtering
         if not budget_ok(q_budget, cu):             continue
         if not pace_ok(q_pace, cu, cm):             continue
         out.append(rec)
