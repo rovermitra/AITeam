@@ -63,7 +63,7 @@ graph TD
     
     C --> C1[users/data/users_core.json<br/>10,000 user profiles]
     D --> D1[MatchMaker/data/matchmaker_profiles.json<br/>10,000 match preferences]
-    E --> E1[artifacts/llama_training_data.jsonl<br/>Training examples for fine-tuning]
+    E --> E1[artifacts/llama_training_data.jsonl<br/>Training examples only for fine-tuning]
     F --> F1[models_cache/bge_user_ids.npy<br/>models_cache/bge_embeds_fp16.npy<br/>Pre-computed embeddings]
     
     style A fill:#e1f5fe
