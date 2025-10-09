@@ -2,7 +2,7 @@
 """
 Automated test script for RoverMitra pipeline (strict Llama ranking)
 
-- Asks which module to test (e.g., "Updated_main" or "Updated_main_fast").
+- Asks which module to test (e.g., "main" or "main_fast").
 - Loads candidate pool, runs hard prefilter, AI prefilter, then ALWAYS uses Llama (llm_rank).
 - Prints compact results and basic timings.
 
@@ -30,8 +30,8 @@ PREFILTER_MIN_K = int(os.getenv("RM_TEST_PREFILTER_MIN_K", "20"))
 TOP_K = int(os.getenv("RM_TEST_TOP_K", "5"))
 
 def choose_module_name() -> str:
-    print("🔧 Testing Updated_main module...")
-    return "Updated_main"
+    print("🔧 Testing main module...")
+    return "main"
 
 def import_pipeline_module(mod_name: str):
     try:

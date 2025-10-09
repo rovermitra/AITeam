@@ -71,7 +71,7 @@ After fine-tuning, you'll get:
 
 To use the fine-tuned model in your system:
 
-1. **Update `Updated_main.py`** to point to the fine-tuned model:
+1. **Update `main.py`** to point to the fine-tuned model:
 ```python
 model_paths = [
     BASE_DIR / "models/llama-travel-matcher",  # Fine-tuned model first
@@ -82,7 +82,7 @@ model_paths = [
 
 2. **Test the improvements**:
 ```bash
-python Updated_main.py  # Should now use fine-tuned model
+python main.py  # Should now use fine-tuned model
 ```
 
 ## 📈 **Performance Tips**

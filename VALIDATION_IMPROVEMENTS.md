@@ -13,7 +13,7 @@
 ## ✅ **Validation Improvements Implemented**
 
 ### **1. Enhanced Numeric Input Validation**
-- **Location**: `Updated_main.py`, `main.py`, `MatchMaker/main.py`
+- **Location**: `main.py`, `MatchMaker/main.py`
 - **Function**: `ask_int()` and `read_int()` with range validation
 - **Features**:
   - Input cleaning (removes non-numeric characters)
@@ -38,7 +38,7 @@
 - **Example**: `15` → ❌ "Please enter a number <= 12"
 
 ### **5. Allergies Validation**
-- **Location**: `Updated_main.py` lines 215-234
+- **Location**: `main.py` lines 215-234
 - **Function**: `ask_allergies()`
 - **Valid Options**: none, nuts, gluten, dairy, eggs, soy, shellfish, fish, sesame, sulfites
 - **Rejects**: Invalid allergy names
@@ -110,7 +110,7 @@
 
 ## 🚀 **Files Updated**
 
-1. **`Updated_main.py`**: Enhanced `ask_int()`, added `ask_allergies()`, updated interactive user creation
+1. **`main.py`**: Enhanced `ask_int()`, added `ask_allergies()`, updated interactive user creation
 2. **`main.py`**: Enhanced `read_int()`, added age validation, city-country validation
 3. **`MatchMaker/main.py`**: Enhanced `read_int()`, added age validation, city-country validation
 

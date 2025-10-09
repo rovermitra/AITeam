@@ -2710,5 +2710,181 @@
       "share_home_city": true,
       "pre_meet_video_call_ok": true
     }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Men"
+      ]
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Men"
+      ]
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "u_local_e2cda39b",
+    "name": "Robert",
+    "age": 40,
+    "gender": "Male",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "de",
+      "en"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "stability",
+      "learning"
+    ],
+    "bio": "I am project manager based in Berlin and I would like to travel who lives in Berlin",
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "train",
+        "plane"
+      ],
+      "must_haves": [
+        "private_bath"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 300,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "gluten-free",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "social",
+      "smoking": "never"
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 1,
+      "wifi_quality_needed": "good"
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Nonbinary travelers"
+      ]
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": false,
+      "pre_meet_video_call_ok": false
+    }
   }
 ]

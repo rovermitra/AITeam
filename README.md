@@ -72,14 +72,14 @@ python build_bge_cache.py
 #### Step 4: Test the System
 ```bash
 # Test without server (local fallback)
-python Updated_main.py
+python main.py
 
 # Or test with server (better performance)
 # Terminal 1: Start server
 python serve_llama.py &
 
 # Terminal 2: Run main app
-python Updated_main.py
+python main.py
 ```
 
 #### Step 5: Optional - Generate Training Data
@@ -118,18 +118,18 @@ RoverMitra uses a **3-stage matching pipeline**:
 | `Scripts/user_data_generator.py` | Generates 10k user profiles | Initial setup, data refresh |
 | `Scripts/matchmaker_data_generator.py` | Generates match preferences | Initial setup, data refresh |
 | `build_bge_cache.py` | Builds AI embedding cache | After user data changes |
-| `Updated_main.py` | Main matching application | Daily use |
+| `main.py` | Main matching application | Daily use |
 | `serve_llama.py` | Llama model server | Production deployment |
 
 ### Development Commands
 
 ```bash
 # Quick test (no server needed)
-python Updated_main.py
+python main.py
 
 # Production mode (with server)
 python serve_llama.py &  # Start server
-python Updated_main.py    # Run main app
+python main.py    # Run main app
 
 # Data regeneration
 python Scripts/user_data_generator.py
@@ -167,17 +167,17 @@ python Scripts/matchmaker_data_generator.py
 python build_bge_cache.py
 
 # Test system
-python Updated_main.py
+python main.py
 ```
 
 #### 2. Running the Application
 ```bash
 # Option A: Local mode (no server)
-python Updated_main.py
+python main.py
 
 # Option B: Server mode (better performance)
 python serve_llama.py &    # Start server in background
-python Updated_main.py     # Run main application
+python main.py     # Run main application
 ```
 
 #### 3. Data Updates
@@ -231,7 +231,7 @@ python serve_llama.py &
 #### Issue: "CUDA out of memory"
 ```bash
 # Solution: Use CPU mode
-CUDA_VISIBLE_DEVICES="" python Updated_main.py
+CUDA_VISIBLE_DEVICES="" python main.py
 ```
 
 ### Performance Optimization
@@ -287,13 +287,13 @@ The system processes travel buddy matching in **3 stages**:
 python serve_llama.py
 
 # Terminal 2: Run Main Application  
-python Updated_main.py
+python main.py
 ```
 
 #### Option B: Local Mode (Fallback)
 ```bash
 # No server needed - uses local models
-python Updated_main.py
+python main.py
 ```
 
 #### Option C: Background Server
@@ -302,7 +302,7 @@ python Updated_main.py
 python serve_llama.py &
 
 # Run main application
-python Updated_main.py
+python main.py
 ```
 
 ## 🌍 Rich Data Generation
@@ -496,7 +496,7 @@ RoverMitra/
 ├── setup.sh                          # Comprehensive setup script
 ├── requirements.txt                   # Enhanced dependencies
 ├── CONFIG.md                         # Configuration guide
-├── Updated_main.py                   # Main matching system (hybrid server/local)
+├── main.py                   # Main matching system (hybrid server/local)
 ├── serve_llama.py                    # Llama model server (FastAPI)
 ├── finetune_llama.py                 # Fine-tuning script
 ├── Scripts/
@@ -759,7 +759,7 @@ export TOKENIZERS_PARALLELISM="false"
 ```bash
 # Enable debug logging
 export TRANSFORMERS_NO_ADVISORY_WARNINGS="0"
-python Updated_main.py
+python main.py
 ```
 
 #### Performance Monitoring
@@ -780,7 +780,7 @@ curl http://localhost:8002/health
 tail -f logs/serve_llama.log
 
 # Check application logs
-python Updated_main.py 2>&1 | tee logs/main.log
+python main.py 2>&1 | tee logs/main.log
 ```
 
 ## 🔄 Data Regeneration
@@ -910,11 +910,11 @@ python build_bge_cache.py
 #### Daily Commands
 ```bash
 # Run application (local mode)
-python Updated_main.py
+python main.py
 
 # Run application (server mode)
 python serve_llama.py &    # Start server
-python Updated_main.py     # Run app
+python main.py     # Run app
 
 # Check system health
 curl http://localhost:8002/health
@@ -935,14 +935,14 @@ pkill -f serve_llama.py
 python serve_llama.py &
 
 # Use CPU mode
-CUDA_VISIBLE_DEVICES="" python Updated_main.py
+CUDA_VISIBLE_DEVICES="" python main.py
 ```
 
 ### File Structure Quick Reference
 
 ```
 RoverMitra/
-├── Updated_main.py              # Main application
+├── main.py              # Main application
 ├── serve_llama.py               # Llama server
 ├── build_bge_cache.py           # AI cache builder
 ├── Scripts/
@@ -976,7 +976,7 @@ RoverMitra/
 |-------|----------|
 | `ModuleNotFoundError: fastapi` | `pip install fastapi uvicorn` |
 | `BGE cache missing` | `python build_bge_cache.py` |
-| `CUDA out of memory` | `CUDA_VISIBLE_DEVICES="" python Updated_main.py` |
+| `CUDA out of memory` | `CUDA_VISIBLE_DEVICES="" python main.py` |
 | `Server not responding` | `pkill -f serve_llama.py && python serve_llama.py &` |
 | `Port already in use` | `pkill -f serve_llama.py` or use different port |
 

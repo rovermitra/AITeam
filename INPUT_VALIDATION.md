@@ -6,7 +6,7 @@ Implemented comprehensive input validation to prevent users from entering invali
 ## ✅ What Was Implemented
 
 ### 1. **City-Country Validation Function**
-- **Location**: `Updated_main.py` lines 205-292
+- **Location**: `main.py` lines 205-292
 - **Function**: `validate_city_country(city, country)`
 - **Features**:
   - Case-insensitive validation
@@ -15,7 +15,7 @@ Implemented comprehensive input validation to prevent users from entering invali
   - Returns validated and properly formatted city/country names
 
 ### 2. **Interactive Input Function**
-- **Location**: `Updated_main.py` lines 294-295
+- **Location**: `main.py` lines 294-295
 - **Function**: `ask_city_country()`
 - **Features**:
   - Prompts user for city and country
@@ -24,7 +24,7 @@ Implemented comprehensive input validation to prevent users from entering invali
   - Retries until valid input is provided
 
 ### 3. **Updated User Creation Functions**
-- **Updated_main.py**: Interactive user creation now uses validation
+- **main.py**: Interactive user creation now uses validation
 - **main.py**: Manual profile creation now uses validation
 - **MatchMaker/main.py**: MatchMaker profile creation now uses validation
 
@@ -86,13 +86,13 @@ Implemented comprehensive input validation to prevent users from entering invali
 
 ### For Interactive User Creation:
 ```python
-from Updated_main import ask_city_country
+from main import ask_city_country
 city, country = ask_city_country()  # Will validate and retry until valid
 ```
 
 ### For Direct Validation:
 ```python
-from Updated_main import validate_city_country
+from main import validate_city_country
 try:
     city, country = validate_city_country("karachi", "germany")
 except ValueError as e:

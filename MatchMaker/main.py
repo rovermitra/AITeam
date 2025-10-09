@@ -217,7 +217,7 @@ def create_manual_profile():
     user['gender'] = input("Gender: ").strip()
     # Import validation function
     try:
-        from Updated_main import validate_city_country
+        from main import validate_city_country
         while True:
             try:
                 city = input("Location (e.g., Berlin): ").strip()

@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 
 # Reuse your project utils (imports only light helpers/paths)
-from Updated_main import load_pool, summarize_user, MODELS_DIR, CACHE_DIR, UIDS_PATH, EMB_PATH
+from main import load_pool, summarize_user, MODELS_DIR, CACHE_DIR, UIDS_PATH, EMB_PATH
 
 def pick_device() -> str:
     try:

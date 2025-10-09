@@ -364,7 +364,7 @@ def main():
         print(f"\n🎉 Fine-tuning completed successfully!")
         print(f"📁 Model saved to: {output_dir}")
         print("\n💡 Next steps:")
-        print("   1. Update Updated_main.py to use the fine-tuned model")
+        print("   1. Update main.py to use the fine-tuned model")
         print("   2. Test the model with real user queries")
         print("   3. Evaluate performance and adjust if needed")
         

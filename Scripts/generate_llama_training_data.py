@@ -20,7 +20,7 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from Updated_main import (
+from main import (
     load_json, load_pool, hard_prefilter, ai_prefilter, 
     craft_specific_reason, summarize_user, query_text
 )

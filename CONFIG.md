@@ -35,7 +35,7 @@ HUGGINGFACE_TOKEN=your_token_here
 3. Generate matchmaker profiles: `python Scripts/matchmaker_data_generator.py`
 4. Generate training data: `python Scripts/generate_llama_training_data.py --num-examples 1000`
 5. Fine-tune model: `python finetune_llama.py`
-6. Run matching: `python Updated_main.py`
+6. Run matching: `python main.py`
 
 ## Development
 
