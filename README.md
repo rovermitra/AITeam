@@ -4,6 +4,12 @@ A comprehensive AI-powered travel companion matching system with fine-tuned Llam
 
 ## 🚀 Quick Start
 
+### Prerequisites
+- **Python 3.8+** (tested with Python 3.11)
+- **CUDA-compatible GPU** (recommended for optimal performance)
+- **16GB+ RAM** (for local model fallback)
+- **20GB+ disk space** (for models and data)
+
 ### One-Command Data Generation
 ```bash
 # Generate all data (users, matchmaker, flights, hotels, restaurants, activities, rentals)
@@ -25,22 +31,115 @@ This will:
 - ✅ Build BGE cache for fast AI prefilter
 - ✅ Run basic tests
 
-### Manual Setup
+### Manual Setup (Step-by-Step)
+
+#### Step 1: Clone and Setup Environment
 ```bash
-# 1. Install dependencies
+# Clone the repository
+git clone <repository-url>
+cd RoverMitra
+
+# Create virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
+```
 
-# 2. Generate all data with one command
-python run_data_pipeline.py
+#### Step 2: Generate Core Data
+```bash
+# Generate user profiles (10,000 users)
+python Scripts/user_data_generator.py
 
-# 3. Build BGE cache (required for fast AI prefilter)
+# Generate matchmaker profiles
+python Scripts/matchmaker_data_generator.py
+
+# Verify data generation
+ls -la users/data/users_core.json MatchMaker/data/matchmaker_profiles.json
+```
+
+#### Step 3: Build AI Cache (Required)
+```bash
+# Build BGE-M3 embeddings cache (one-time setup)
 python build_bge_cache.py
 
-# 4. Generate training data (optional)
+# This creates:
+# - models_cache/bge_user_ids.npy (user IDs)
+# - models_cache/bge_embeds_fp16.npy (1024-dim embeddings)
+```
+
+#### Step 4: Test the System
+```bash
+# Test without server (local fallback)
+python Updated_main.py
+
+# Or test with server (better performance)
+# Terminal 1: Start server
+python serve_llama.py &
+
+# Terminal 2: Run main app
+python Updated_main.py
+```
+
+#### Step 5: Optional - Generate Training Data
+```bash
+# Generate training data for fine-tuning
 python Scripts/generate_llama_training_data.py --num-examples 1000 --output artifacts/llama_training_data.jsonl
 ```
 
-### 4. Fine-Tune Llama Model
+## 🔧 Development Workflow
+
+### Understanding the System Architecture
+
+RoverMitra uses a **3-stage matching pipeline**:
+
+1. **Hard Prefilters** (Rule-based)
+   - Age compatibility
+   - Gender preferences  
+   - Language requirements
+   - Budget band matching
+   - Travel pace alignment
+
+2. **AI Prefilter** (BGE-M3 Embeddings)
+   - Semantic similarity matching
+   - Pre-computed embeddings cache
+   - Reduces candidates from ~8k to ~200
+
+3. **Final Ranking** (Llama Model)
+   - Fine-tuned Llama for travel compatibility
+   - Server-based (recommended) or local fallback
+   - Generates detailed explanations
+
+### Key Files Explained
+
+| File | Purpose | When to Run |
+|------|---------|-------------|
+| `Scripts/user_data_generator.py` | Generates 10k user profiles | Initial setup, data refresh |
+| `Scripts/matchmaker_data_generator.py` | Generates match preferences | Initial setup, data refresh |
+| `build_bge_cache.py` | Builds AI embedding cache | After user data changes |
+| `Updated_main.py` | Main matching application | Daily use |
+| `serve_llama.py` | Llama model server | Production deployment |
+
+### Development Commands
+
+```bash
+# Quick test (no server needed)
+python Updated_main.py
+
+# Production mode (with server)
+python serve_llama.py &  # Start server
+python Updated_main.py    # Run main app
+
+# Data regeneration
+python Scripts/user_data_generator.py
+python build_bge_cache.py
+
+# Check system health
+curl http://localhost:8002/health
+```
+
+### Fine-Tune Llama Model (Optional)
 ```bash
 # CPU Training (works on any system)
 CUDA_VISIBLE_DEVICES="" python finetune_llama.py --training-data artifacts/llama_training_data.jsonl --base-model models/llama-3.2-3b-instruct --epochs 5 --batch-size 2 --max-length 1024 --output-dir models/llama-travel-matcher
@@ -49,54 +148,160 @@ CUDA_VISIBLE_DEVICES="" python finetune_llama.py --training-data artifacts/llama
 python finetune_llama.py --training-data artifacts/llama_training_data.jsonl --base-model models/llama-3.2-3b-instruct --epochs 5 --batch-size 4 --max-length 2048 --output-dir models/llama-travel-matcher
 ```
 
-### 5. Build BGE Cache (One-Time Setup)
+## 📋 Common Developer Tasks
+
+### Daily Development Workflow
+
+#### 1. First Time Setup
 ```bash
-# Build BGE-M3 embeddings cache for fast AI prefilter
+# Clone and setup
+git clone <repo-url>
+cd RoverMitra
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Generate data
+python Scripts/user_data_generator.py
+python Scripts/matchmaker_data_generator.py
+python build_bge_cache.py
+
+# Test system
+python Updated_main.py
+```
+
+#### 2. Running the Application
+```bash
+# Option A: Local mode (no server)
+python Updated_main.py
+
+# Option B: Server mode (better performance)
+python serve_llama.py &    # Start server in background
+python Updated_main.py     # Run main application
+```
+
+#### 3. Data Updates
+```bash
+# Regenerate user data
+python Scripts/user_data_generator.py
+
+# Regenerate matchmaker data  
+python Scripts/matchmaker_data_generator.py
+
+# Rebuild AI cache (required after data changes)
 python build_bge_cache.py
 ```
 
-**When to run this:**
-- ✅ **First time setup** - Required before running the main system
-- ✅ **After updating user data** - When `users_core.json` or `matchmaker_profiles.json` changes
-- ✅ **Performance optimization** - Pre-computes embeddings for 10,000+ users
+#### 4. System Health Checks
+```bash
+# Check if server is running
+curl http://localhost:8002/health
 
-**What it does:**
-- Loads all user profiles and matchmaker data
-- Generates BGE-M3 embeddings for all users
-- Saves cached embeddings to `models_cache/bge_embeds_fp16.npy`
-- Saves user IDs to `models_cache/bge_user_ids.npy`
+# Check data files exist
+ls -la users/data/users_core.json
+ls -la MatchMaker/data/matchmaker_profiles.json
+ls -la models_cache/bge_*.npy
 
-**Performance impact:**
+# Check Python environment
+python --version
+pip list | grep -E "(torch|transformers|sentence-transformers)"
+```
+
+### Troubleshooting Common Issues
+
+#### Issue: "BGE cache missing"
+```bash
+# Solution: Build the cache
+python build_bge_cache.py
+```
+
+#### Issue: "No module named 'fastapi'"
+```bash
+# Solution: Install missing dependencies
+pip install fastapi uvicorn
+```
+
+#### Issue: "Server not responding"
+```bash
+# Solution: Restart server
+pkill -f serve_llama.py
+python serve_llama.py &
+```
+
+#### Issue: "CUDA out of memory"
+```bash
+# Solution: Use CPU mode
+CUDA_VISIBLE_DEVICES="" python Updated_main.py
+```
+
+### Performance Optimization
+
+#### BGE Cache Benefits
 - **Without cache**: AI prefilter takes ~3-5 seconds per query
 - **With cache**: AI prefilter takes ~0.05 seconds per query (**100x faster!**)
 
-### 6. Run the Matching System
+**When to rebuild cache:**
+- ✅ After updating `users_core.json`
+- ✅ After updating `matchmaker_profiles.json`
+- ✅ When adding new user data
 
-#### Option A: Server-Based (Recommended - 45% Faster)
+#### Server vs Local Mode
+- **Server mode**: ~7-8 seconds per ranking (recommended)
+- **Local mode**: ~10-12 seconds per ranking (fallback)
+- **Memory usage**: Server mode uses single model instance
+
+## 🎯 Understanding the Matching Pipeline
+
+### How RoverMitra Works
+
+The system processes travel buddy matching in **3 stages**:
+
+#### Stage 1: Hard Prefilters (Rule-Based)
+- **Age compatibility**: Checks if ages match companion preferences
+- **Gender preferences**: Filters based on travel companion gender preferences
+- **Language requirements**: Ensures minimum shared languages
+- **Budget compatibility**: Matches budget bands (budget/mid/lux)
+- **Travel pace**: Aligns relaxed/balanced/packed preferences
+
+**Example**: 10,000 users → ~8,000 candidates
+
+#### Stage 2: AI Prefilter (BGE-M3 Embeddings)
+- **Semantic similarity**: Uses BGE-M3 model to find compatible users
+- **Pre-computed cache**: Fast lookup using cached embeddings
+- **Cultural matching**: Considers interests, values, personality traits
+
+**Example**: ~8,000 candidates → ~200 shortlist
+
+#### Stage 3: Final Ranking (Llama Model)
+- **Fine-tuned Llama**: Specialized for travel compatibility
+- **Detailed explanations**: Generates specific match reasons
+- **Compatibility scores**: 0.0-1.0 scale with explanations
+
+**Example**: ~200 shortlist → 5 top matches
+
+### Running the System
+
+#### Option A: Server-Based (Recommended)
 ```bash
 # Terminal 1: Start Llama Server
-cd /data/abdul/RoverMitra
-source matchmaker/bin/activate
-uvicorn serve_llama:app --host 0.0.0.0 --port 8002 --workers 1
+python serve_llama.py
 
-# Terminal 2: Run Main Application
-cd /data/abdul/RoverMitra
-source matchmaker/bin/activate
+# Terminal 2: Run Main Application  
 python Updated_main.py
 ```
 
-#### Option B: Background Server
+#### Option B: Local Mode (Fallback)
+```bash
+# No server needed - uses local models
+python Updated_main.py
+```
+
+#### Option C: Background Server
 ```bash
 # Start server in background
-tmux new -s llama_server -d 'source matchmaker/bin/activate && uvicorn serve_llama:app --host 0.0.0.0 --port 8002 --workers 1'
+python serve_llama.py &
 
 # Run main application
-python Updated_main.py
-```
-
-#### Option C: Local Model Only (Fallback)
-```bash
-# If server is not available, system automatically falls back to local model
 python Updated_main.py
 ```
 
@@ -497,7 +702,7 @@ results = batch_process_users(users, pool, batch_size=100)
    Explanation: For you, this match fits because of shared love for architecture walks, museum hopping, you both speak de, matching balanced pace, similar daily budgets, and they're based in Berlin.
 ```
 
-## 🛠️ Development Workflow
+## 🛠️ Advanced Development
 
 ### Code Quality Tools
 ```bash
@@ -527,12 +732,56 @@ pip install -r requirements.txt
 ./setup.sh
 ```
 
-### Configuration
-See `CONFIG.md` for detailed configuration options including:
-- Model settings
-- Data generation parameters
-- API configuration
-- Environment variables
+### Configuration Files
+
+#### Key Configuration Files
+- `requirements.txt` - Python dependencies
+- `CONFIG.md` - Detailed configuration options
+- `env.example` - Environment variables template
+
+#### Environment Variables
+```bash
+# Model paths
+export HF_HOME="/path/to/models_cache"
+export TRANSFORMERS_CACHE="/path/to/models_cache/transformers"
+
+# GPU settings
+export CUDA_VISIBLE_DEVICES="0"  # Use specific GPU
+
+# Performance settings
+export PYTORCH_CUDA_ALLOC_CONF="max_split_size_mb:512"
+export TOKENIZERS_PARALLELISM="false"
+```
+
+### Debugging and Monitoring
+
+#### Debug Mode
+```bash
+# Enable debug logging
+export TRANSFORMERS_NO_ADVISORY_WARNINGS="0"
+python Updated_main.py
+```
+
+#### Performance Monitoring
+```bash
+# Monitor GPU usage
+nvidia-smi
+
+# Monitor memory usage
+htop
+
+# Check server status
+curl http://localhost:8002/health
+```
+
+#### Log Analysis
+```bash
+# Check server logs
+tail -f logs/serve_llama.log
+
+# Check application logs
+python Updated_main.py 2>&1 | tee logs/main.log
+```
 
 ## 🔄 Data Regeneration
 
@@ -640,6 +889,96 @@ This project is for development and testing purposes. All data is synthetic and 
 - ✅ **Scalable Generation**: Efficient data generation scripts
 - ✅ **Cultural Awareness**: Names and details match geographic regions
 - ✅ **BGE Cache**: Pre-computed embeddings for faster AI prefilter
+
+## 📚 Developer Reference
+
+### Quick Command Reference
+
+#### Setup Commands
+```bash
+# Initial setup
+git clone <repo-url> && cd RoverMitra
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
+
+# Generate data
+python Scripts/user_data_generator.py
+python Scripts/matchmaker_data_generator.py
+python build_bge_cache.py
+```
+
+#### Daily Commands
+```bash
+# Run application (local mode)
+python Updated_main.py
+
+# Run application (server mode)
+python serve_llama.py &    # Start server
+python Updated_main.py     # Run app
+
+# Check system health
+curl http://localhost:8002/health
+ls -la users/data/users_core.json
+ls -la models_cache/bge_*.npy
+```
+
+#### Troubleshooting Commands
+```bash
+# Fix missing dependencies
+pip install fastapi uvicorn
+
+# Fix BGE cache
+python build_bge_cache.py
+
+# Fix server issues
+pkill -f serve_llama.py
+python serve_llama.py &
+
+# Use CPU mode
+CUDA_VISIBLE_DEVICES="" python Updated_main.py
+```
+
+### File Structure Quick Reference
+
+```
+RoverMitra/
+├── Updated_main.py              # Main application
+├── serve_llama.py               # Llama server
+├── build_bge_cache.py           # AI cache builder
+├── Scripts/
+│   ├── user_data_generator.py   # User profiles
+│   └── matchmaker_data_generator.py # Match preferences
+├── users/data/
+│   └── users_core.json         # 10k user profiles
+├── MatchMaker/data/
+│   └── matchmaker_profiles.json # 10k match preferences
+├── models_cache/
+│   ├── bge_user_ids.npy        # User IDs for embeddings
+│   └── bge_embeds_fp16.npy     # 1024-dim embeddings
+└── data/
+    └── travel_ready_user_profiles.json # Local user storage
+```
+
+### Performance Expectations
+
+| Operation | Time | Notes |
+|-----------|------|-------|
+| User generation | ~30 seconds | 10k users |
+| BGE cache build | ~1 minute | One-time setup |
+| Hard prefilter | ~1ms | Rule-based |
+| AI prefilter | ~50ms | With cache |
+| Final ranking (server) | ~7-8s | Recommended |
+| Final ranking (local) | ~10-12s | Fallback |
+
+### Common Issues & Solutions
+
+| Issue | Solution |
+|-------|----------|
+| `ModuleNotFoundError: fastapi` | `pip install fastapi uvicorn` |
+| `BGE cache missing` | `python build_bge_cache.py` |
+| `CUDA out of memory` | `CUDA_VISIBLE_DEVICES="" python Updated_main.py` |
+| `Server not responding` | `pkill -f serve_llama.py && python serve_llama.py &` |
+| `Port already in use` | `pkill -f serve_llama.py` or use different port |
 
 ---
 

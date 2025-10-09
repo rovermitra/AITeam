@@ -286,8 +286,8 @@ def interactive_new_user() -> Dict[str, Any]:
     values = ask_multi("Choose 2–3", VALUES, 2, 3, default_idxs=[0,6])
 
     print("\n— Travel companions —")
-    companion_pref = ask_choice("Who would you like to travel with?", 
-                               ["I'm open to travel with anyone", "Men", "Women", "Nonbinary travelers"], 
+    companion_pref = ask_choice("Who would you like to travel with?",
+                               ["I'm open to travel with anyone", "Men", "Women", "Nonbinary travelers"],
                                "I'm open to travel with anyone")
 
     print("\n— Safety —")
@@ -429,9 +429,9 @@ def companion_gender_ok(query_companion_pref: str, cand_user: Dict[str,Any]) -> 
     """
     if not query_companion_pref:
         return True
-    
+
     cand_gender = (cand_user.get("gender") or "").lower()
-    
+
     # Map companion preferences to gender matching
     if query_companion_pref.lower() == "i'm open to travel with anyone":
         return True
@@ -441,7 +441,7 @@ def companion_gender_ok(query_companion_pref: str, cand_user: Dict[str,Any]) -> 
         return cand_gender in ["female", "woman"]
     elif query_companion_pref.lower() == "nonbinary travelers":
         return cand_gender in ["non-binary", "nonbinary", "other"]
-    
+
     return True
 
 def langs_ok(query_langs: List[str], cand_mm: Dict[str,Any], cand_user: Dict[str,Any]) -> bool:
@@ -474,11 +474,11 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
     q_langs = q.get("languages",[])
     q_budget = (q.get("budget") or {}).get("amount", 150)
     q_pace = (q.get("travel_prefs") or {}).get("pace","balanced")
-    
+
     # Get companion preferences for hard-coded filtering
     q_companion_prefs = q.get("companion_preferences", {})
     q_companion_gender = q_companion_prefs.get("genders_ok", ["I'm open to travel with anyone"])[0] if q_companion_prefs.get("genders_ok") else "I'm open to travel with anyone"
-    
+
     for rec in pool:
         cu, cm = rec["user"], rec["mm"]
         if not langs_ok(q_langs, cm, cu):           continue
@@ -499,8 +499,10 @@ _cached_embs = None
 
 def ensure_emb(device: str = "cuda"):
     global _EMB
-    if _ML_OK and _EMB is None:
-        dev = device if torch.cuda.is_available() else "cpu"
+    if not _ML_OK:
+        return None
+    if _EMB is None:
+        dev = device if (hasattr(torch, "cuda") and torch.cuda.is_available()) else "cpu"
         print("Loading BGE-M3 embedding model...")
         _EMB = SentenceTransformer(str(BGE_M3_PATH), device=dev)
         print("BGE-M3 embedding model loaded.")
@@ -515,21 +517,83 @@ def _load_bge_cache():
         _cached_embs = np.load(EMB_PATH,  allow_pickle=False)   # float16 [N,D]
     return _cached_ids, _cached_embs
 
+def _heuristic_shortlist(q_user: Dict[str, Any],
+                         cands: List[Dict[str, Any]],
+                         percent: float,
+                         min_k: int) -> List[Dict[str, Any]]:
+    """
+    ML/caches unavailable → use the symbolic 'bonuses' as score and shortlist.
+    """
+    def _band(v):
+        if v is None: return "mid"
+        if v <=  90:  return "budget"
+        if v >= 180:  return "lux"
+        return "mid"
+    def _band_idx(b):
+        order = ["budget","mid","lux"]
+        return order.index(b) if b in order else 1
+
+    q_interests = set(q_user.get("interests", []) or [])
+    q_values    = set(q_user.get("values", []) or [])
+    q_langs     = set(q_user.get("languages", []) or [])
+    q_pace      = (q_user.get("travel_prefs") or {}).get("pace", "balanced")
+    q_budget_b  = _band((q_user.get("budget") or {}).get("amount"))
+
+    scored = []
+    for rec in cands:
+        u = rec["user"]
+        mm = rec.get("mm") or {}
+        ui  = set(u.get("interests", []) or [])
+        uv  = set(u.get("values", []) or [])
+        score = 0.0
+        score += 0.60 * (len(q_interests & ui) / max(1, len(q_interests | ui)))
+        score += 0.30 * (len(q_values & uv) / max(1, len(q_values | uv)))
+        c_pace = (u.get("travel_prefs") or {}).get("pace") or "balanced"
+        want_same = ((mm.get("soft_preferences") or {}).get("prefer_same_pace") == "prefer_same")
+        if want_same and c_pace == q_pace:
+            score += 0.20
+        langs = set(u.get("languages", []) or [])
+        score += 0.20 * min(1, len(q_langs & langs))
+        cand_amt = (u.get("budget") or {}).get("amount")
+        c_band = _band(cand_amt)
+        gap = abs(_band_idx(q_budget_b) - _band_idx(c_band))
+        if gap == 0: score += 0.20
+        elif gap == 1: score += 0.10
+        scored.append((rec, score))
+
+    scored.sort(key=lambda x: x[1], reverse=True)
+    k = max(min_k, int(math.ceil(len(scored) * percent)))
+    k = min(k, len(scored))
+    return [rec for rec, _ in scored[:k]]
+
 def ai_prefilter(q_user: Dict[str, Any],
                  cands: List[Dict[str, Any]],
                  percent: float = 0.02,
                  min_k: int = 80) -> List[Dict[str, Any]]:
     if not cands:
         return []
+    if not _ML_OK:
+        print("[info] ML stack unavailable; using heuristic shortlist.")
+        return _heuristic_shortlist(q_user, cands, percent, min_k)
 
     # Map candidates to cached embedding rows
-    cand_uids = [rec["user"]["user_id"] for rec in cands]
-    ids, embs = _load_bge_cache()              # embs: [N,D] float16
+    try:
+        ids, embs = _load_bge_cache()              # embs: [N,D] float16
+    except Exception as e:
+        print(f"[warn] {e}  Using heuristic shortlist instead.")
+        return _heuristic_shortlist(q_user, cands, percent, min_k)
+
     uid2idx = {uid: i for i, uid in enumerate(ids)}
-    idxs = [uid2idx[u] for u in cand_uids if u in uid2idx]
+    cand_uids = [rec["user"]["user_id"] for rec in cands]
+    # For alignment: store index or None if missing
+    cand_row_idx = [uid2idx.get(u) for u in cand_uids]
 
     # Encode query only (GPU if available)
     model = ensure_emb()
+    if model is None:
+        print("[info] No embedding model; using heuristic shortlist.")
+        return _heuristic_shortlist(q_user, cands, percent, min_k)
+
     qv = model.encode(
         [query_text(q_user)],
         convert_to_numpy=True,
@@ -537,8 +601,18 @@ def ai_prefilter(q_user: Dict[str, Any],
         show_progress_bar=False
     )[0].astype("float16")
 
-    sub = embs[idxs]                            # [K,D] float16
-    sims = (sub @ qv).astype("float32")         # cosine approx
+    # Compute similarities where cache rows exist
+    valid_pairs = [(i, idx) for i, idx in enumerate(cand_row_idx) if idx is not None]
+    sims_full = np.full(len(cands), 0.30, dtype="float32")  # baseline for uncached users
+    if valid_pairs:
+        sub = embs[[idx for (_, idx) in valid_pairs]]       # [K,D] float16
+        sims = (sub @ qv).astype("float32")                 # cosine approx
+        # normalize among valid sims
+        s_min, s_max = float(sims.min()), float(sims.max())
+        sims_norm = (sims - s_min) / (s_max - s_min) if s_max > s_min else np.full_like(sims, 0.5, dtype="float32")
+        # write back into full vector
+        for (pos, _), val in zip(valid_pairs, sims_norm):
+            sims_full[pos] = float(val)
 
     # symbolic bonuses (same as before)
     def _band(v):
@@ -578,10 +652,8 @@ def ai_prefilter(q_user: Dict[str, Any],
         elif gap == 1: b += 0.10
         bonuses.append(b)
 
-    # normalize sims + add bonuses
-    s_min, s_max = float(sims.min()), float(sims.max())
-    sims_norm = (sims - s_min) / (s_max - s_min) if s_max > s_min else np.full_like(sims, 0.5, dtype="float32")
-    combined = [(cands[i], float(sims_norm[i]) + float(bonuses[i])) for i in range(len(cands))]
+    # combine normalized sims (with alignment) + bonuses
+    combined = [(cands[i], float(sims_full[i]) + float(bonuses[i])) for i in range(len(cands))]
     combined.sort(key=lambda x: x[1], reverse=True)
 
     # keep ~2% (min 80) for general run; you can lower for test
@@ -604,7 +676,7 @@ def check_server_availability():
     global _SERVER_AVAILABLE
     if _SERVER_AVAILABLE is not None:
         return _SERVER_AVAILABLE
-    
+
     try:
         response = requests.get("http://localhost:8002/health", timeout=5)
         if response.status_code == 200:
@@ -614,7 +686,7 @@ def check_server_availability():
             _SERVER_AVAILABLE = False
     except Exception:
         _SERVER_AVAILABLE = False
-    
+
     return _SERVER_AVAILABLE
 
 def get_llama_ranking_server(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
@@ -691,7 +763,7 @@ def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0
         return None
 
     tok, mdl = model_data["tokenizer"], model_data["model"]
-    
+
     # Prepare inputs
     inputs = tok(prompt, return_tensors="pt", truncation=True, max_length=4096)
     inputs = {k: v.to(mdl.device) for k, v in inputs.items()}
@@ -725,7 +797,7 @@ def get_llama_ranking(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
             return result
         else:
             print("⚠️  Server failed, falling back to local model...")
-    
+
     # Fallback to local model
     print("🔄 Using local Llama model...")
     return get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
@@ -774,13 +846,13 @@ def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=
 
     system_prompt = "Return ONLY valid JSON with key 'matches'. No explanations. No extra text."
     prompt = build_llm_prompt(q_user, shortlist_for_llm, top_k=out_top)
-    
+
     # Combine system prompt and user prompt
     full_prompt = f"System: {system_prompt}\nUser: {prompt}\nAssistant:"
-    
+
     # Use server for ranking
     text = get_llama_ranking(full_prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
-    
+
     if text is None:
         print("[warn] Llama server unavailable, using fallback")
         return llm_rank_fallback(q_user, shortlist_for_llm, out_top)
