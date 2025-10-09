@@ -391,6 +391,19 @@ def boundaries_safety():
         "share_location_with_group": random.choice([True, False])
     }
 
+def maybe_faith_block():
+    # Optional + private; only included when opted-in
+    if random.random() < 0.25:  # adjust sampling rate as needed
+        return {
+            "consider_in_matching": True,
+            "religion": random.choice([
+                "Islam","Hindu","Christian","Jewish","Buddhist","Sikh","Other"
+            ]),
+            "policy": random.choice(["same_only","prefer_same","open"]),
+            "visibility": "private"
+        }
+    return None
+
 def culture_for(country, city_langs, COUNTRY_CULTURE, SWISS_LANG_TO_CULT):
     if country == "Switzerland":
         lang = next((l for l in city_langs if l in ("de","fr","it")), "de")
@@ -534,6 +547,11 @@ def build_user(
             "marketing_opt_in": random.random() < 0.3
         }
     }
+    
+    fb = maybe_faith_block()
+    if fb:
+        profile["faith"] = fb
+    
     return profile
 
 def degrade_profile_randomly(profile):

@@ -2886,5 +2886,201 @@
       "share_home_city": false,
       "pre_meet_video_call_ok": false
     }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Men"
+      ]
+    },
+    "faith": {
+      "consider_in_matching": false,
+      "religion": "",
+      "policy": "open",
+      "visibility": "private"
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Men"
+      ]
+    },
+    "faith": {
+      "consider_in_matching": false,
+      "religion": "",
+      "policy": "open",
+      "visibility": "private"
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "u_local_89e9e9b0",
+    "name": "Mubashir",
+    "age": 26,
+    "gender": "Male",
+    "home_base": {
+      "city": "Hala New",
+      "country": "Pakistan",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "en",
+      "hi",
+      "si",
+      "ur"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "stability",
+      "learning"
+    ],
+    "bio": "I am AI Engineer and live in Hala new sindh pakistan",
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "double",
+      "transport_allowed": [
+        "train",
+        "plane"
+      ],
+      "must_haves": [
+        "private_bath"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 200,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "occasionally"
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 1,
+      "wifi_quality_needed": "excellent"
+    },
+    "companion_preferences": {
+      "genders_ok": [
+        "Women"
+      ]
+    },
+    "faith": {
+      "consider_in_matching": true,
+      "religion": "Islam",
+      "policy": "same_only",
+      "visibility": "private"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": false,
+      "pre_meet_video_call_ok": false
+    }
   }
 ]

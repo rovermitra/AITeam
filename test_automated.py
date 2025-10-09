@@ -49,7 +49,7 @@ def import_pipeline_module(mod_name: str):
     return mod
 
 def demo_test_users():
-    """Three varied profiles to exercise the pipeline with gender preferences."""
+    """Four varied profiles to exercise the pipeline with gender and faith preferences."""
     return [
         {
             'id': 'test_user_1',
@@ -68,6 +68,12 @@ def demo_test_users():
             'work': {'remote_work_ok': False},
             'companion_preferences': {
                 'genders_ok': ['Men']
+            },
+            'faith': {
+                'consider_in_matching': False,
+                'religion': '',
+                'policy': 'open',
+                'visibility': 'private'
             },
             'privacy': {'share_home_city': True}
         },
@@ -89,6 +95,12 @@ def demo_test_users():
             'companion_preferences': {
                 'genders_ok': ['Women']
             },
+            'faith': {
+                'consider_in_matching': True,
+                'religion': 'Christian',
+                'policy': 'prefer_same',
+                'visibility': 'private'
+            },
             'privacy': {'share_home_city': True}
         },
         {
@@ -109,12 +121,44 @@ def demo_test_users():
             'companion_preferences': {
                 'genders_ok': ["I'm open to travel with anyone"]
             },
+            'faith': {
+                'consider_in_matching': True,
+                'religion': 'Islam',
+                'policy': 'same_only',
+                'visibility': 'private'
+            },
             'privacy': {'share_home_city': False}
+        },
+        {
+            'id': 'test_user_4',
+            'name': 'Priya Delhi',
+            'age': 26,
+            'gender': 'Female',
+            'home_base': {'city': 'Delhi', 'country': 'India'},
+            'languages': ['en', 'hi'],
+            'interests': ['temples', 'street food', 'yoga', 'meditation'],
+            'values': ['spirituality', 'learning'],
+            'bio': 'Delhi-based yoga instructor who loves spiritual journeys',
+            'travel_prefs': {'pace': 'relaxed'},
+            'budget': {'amount': 120, 'currency': 'EUR'},
+            'diet_health': {'diet': 'vegetarian'},
+            'comfort': {'smoking': 'never', 'alcohol': 'none'},
+            'work': {'remote_work_ok': True},
+            'companion_preferences': {
+                'genders_ok': ["I'm open to travel with anyone"]
+            },
+            'faith': {
+                'consider_in_matching': True,
+                'religion': 'Hindu',
+                'policy': 'prefer_same',
+                'visibility': 'private'
+            },
+            'privacy': {'share_home_city': True}
         }
     ]
 
 def run_core_tests(mod):
-    print("🧪 Testing RoverMitra core functionality (strict Llama)…")
+    print("🧪 Testing RoverMitra core functionality with faith preferences (strict Llama)…")
 
     # Show basic env hints (helps diagnose CPU/GPU issues quickly)
     print(f"⚙️  CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES', '<unset>')}")
@@ -136,9 +180,10 @@ def run_core_tests(mod):
         pool = pool[:POOL_CAP]
         print(f"⚡ POOL_CAP applied: testing with first {POOL_CAP} candidates")
 
-    # 2) Test with 3 demo users
+    # 2) Test with 4 demo users (including faith preferences)
     users = demo_test_users()
     print(f"\n2️⃣ Running tests for {len(users)} demo users (AI prefilter {int(PREFILTER_PERCENT*100)}% / min_k={PREFILTER_MIN_K}, TOP_K={TOP_K})")
+    print("   Testing: gender preferences, faith preferences (open/prefer_same/same_only)")
 
     for idx, q in enumerate(users, 1):
         print(f"\n--- User {idx}: {q['name']} ---")
@@ -172,6 +217,7 @@ def run_core_tests(mod):
         print(f"✅ Llama ranking produced {len(final)} matches (in {t1 - t0:.2f}s)")
 
         # Show matches
+        faith_matches = 0
         for j, m in enumerate(final, 1):
             score = m.get("compatibility_score", 0.0)
             try:
@@ -180,6 +226,18 @@ def run_core_tests(mod):
                 pct = 0
             print(f"  {j}. {m.get('name','?')} — {pct}%")
             print(f"     {m.get('explanation','(no explanation)')}")
+            
+            # Count faith-aware matches for faith-conscious users
+            if q.get('faith', {}).get('consider_in_matching'):
+                # This would need to be checked against the actual candidate data
+                # For now, just note that we're testing faith-aware matching
+                pass
+        
+        # Show faith-specific info for faith-conscious users
+        if q.get('faith', {}).get('consider_in_matching'):
+            faith_policy = q.get('faith', {}).get('policy', 'open')
+            faith_religion = q.get('faith', {}).get('religion', '')
+            print(f"  🕌 Faith preference: {faith_religion} ({faith_policy})")
 
     # 3) Append-to-JSON smoke test
     try:
@@ -213,6 +271,12 @@ def run_perf_tests(mod):
             'diet_health': {'diet': 'none'},
             'comfort': {'smoking': 'never', 'alcohol': 'moderate'},
             'work': {'remote_work_ok': False},
+            'faith': {
+                'consider_in_matching': False,
+                'religion': '',
+                'policy': 'open',
+                'visibility': 'private'
+            },
             'privacy': {'share_home_city': True}
         }
 

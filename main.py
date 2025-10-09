@@ -145,6 +145,14 @@ LANG_ALIASES = {
 }
 DIETS = {"none","vegetarian","vegan","halal","kosher","gluten-free","no pork","lactose-free","pescatarian"}
 
+# --- Faith constants -------------------------------------------------------------
+FAITH_LABELS = [
+    "Islam","Hindu","Christian","Jewish","Buddhist","Sikh","Other","Prefer not to say"
+]
+
+def _faith_slug(s: str) -> str:
+    return (s or "").strip().lower().replace(" ", "_")
+
 # ---------------------------------------------------------------------
 # CLI helpers (interactive profile builder)
 # ---------------------------------------------------------------------
@@ -294,6 +302,31 @@ def interactive_new_user() -> Dict[str, Any]:
     share_home_city = ask_yesno("OK to show your home city on profile?", True)
     pre_meet_video  = ask_yesno("Comfortable with a short pre-trip video call?", True)
 
+    print("\n— Optional: faith (totally private) —")
+    print("Some travelers prefer matching with someone who shares their faith. This is 100% optional and always private.")
+    consider_faith = ask_yesno("Would you like us to consider faith when matching? (Totally okay to say no.)", False)
+
+    faith_block = {
+        "consider_in_matching": False,
+        "religion": "",
+        "policy": "open",       # "open" | "prefer_same" | "same_only"
+        "visibility": "private"
+    }
+
+    if consider_faith:
+        faith_block["consider_in_matching"] = True
+        faith_block["policy"] = ask_choice(
+            "How should we consider it? (open / prefer_same / same_only)",
+            ["open", "prefer_same", "same_only"],
+            "prefer_same"
+        )
+        faith_pick = ask_choice(
+            "If you're comfortable, what's your faith?",
+            FAITH_LABELS,
+            "Prefer not to say"
+        )
+        faith_block["religion"] = "" if faith_pick == "Prefer not to say" else faith_pick
+
     print("\n— Last bit —")
     bio = ask("Write a one-liner about you (e.g., 'Berlin-based planner who loves scenic trains + espresso.')", "")
 
@@ -339,6 +372,8 @@ def interactive_new_user() -> Dict[str, Any]:
             "genders_ok": [companion_pref]
         },
 
+        "faith": faith_block,
+
         "privacy": {
             "share_profile_with_matches": True,
             "share_home_city": share_home_city,
@@ -381,10 +416,25 @@ def summarize_user(u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
     parts.append("interests=" + ",".join(intr[:10]))
     vals = u.get("values") or []
     if vals: parts.append("values=" + ",".join(vals[:5]))
+    
+    # Include faith information if available (for better BGE embeddings)
+    faith_info = u.get("faith") or {}
+    if faith_info.get("consider_in_matching"):
+        faith_policy = faith_info.get("policy", "open")
+        faith_religion = faith_info.get("religion", "")
+        if faith_religion:
+            parts.append(f"faith={faith_religion}({faith_policy})")
+    
     return " | ".join(parts)
 
 def query_text(q: Dict[str,Any]) -> str:
     hb = q.get("home_base") or {}
+    fq = q.get("faith") or {}
+    faith_str = ""
+    if fq.get("consider_in_matching"):
+        fp = fq.get("policy","open")
+        fr = fq.get("religion","")
+        faith_str = f"\nFaithPolicy: {fp}\nFaith: {fr}"
     return (
         f"Name: {q.get('name')}\n"
         f"Age: {q.get('age')}\n"
@@ -400,7 +450,7 @@ def query_text(q: Dict[str,Any]) -> str:
         f"MustHaves: {', '.join((q.get('travel_prefs') or {}).get('must_haves',[]))}\n"
         f"Transport: {', '.join((q.get('travel_prefs') or {}).get('transport_allowed',[]))}\n"
         f"RemoteWork: {(q.get('work') or {}).get('remote_work_ok', False)}\n"
-        f"Bio: {q.get('bio', '')}"
+        f"Bio: {q.get('bio', '')}{faith_str}"
     )
 
 # ---------------------------------------------------------------------
@@ -467,6 +517,31 @@ def pace_ok(query_pace: str, cand_user: Dict[str,Any], cand_mm: Dict[str,Any]) -
         return True
     return cand_pace == query_pace
 
+def faith_ok(q: Dict[str,Any], cand_user: Dict[str,Any], cand_mm: Dict[str,Any]) -> bool:
+    """
+    Enforce query user's *hard* faith requirement and candidate's own same-faith dealbreaker.
+    - If query policy == 'same_only' => require same token.
+    - If query policy == 'prefer_same' => soft bonus only (not a hard block).
+    - Respect candidate's 'same_faith_required' if it exists in their hard_dealbreakers.
+    """
+    qf = (q.get("faith") or {})
+    consider = bool(qf.get("consider_in_matching"))
+    q_token = _faith_slug(qf.get("religion") or "")
+
+    mm = cand_mm or {}
+    cand_fp = (mm.get("faith_preference") or {})
+    c_token = cand_fp.get("religion_token", "")
+
+    cand_requires_same = "same_faith_required" in (mm.get("hard_dealbreakers") or [])
+
+    if cand_requires_same:
+        return bool(q_token and c_token and q_token == c_token)
+
+    if consider and qf.get("policy") == "same_only":
+        return bool(q_token and c_token and q_token == c_token)
+
+    return True
+
 def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str,Any]]:
     out = []
     q_age = int(q.get("age", 30))
@@ -487,6 +562,7 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
         if not companion_gender_ok(q_companion_gender, cu): continue  # Hard-coded companion filtering
         if not budget_ok(q_budget, cu):             continue
         if not pace_ok(q_pace, cu, cm):             continue
+        if not faith_ok(q, cu, cm):                 continue
         out.append(rec)
     return out
 
@@ -539,6 +615,11 @@ def _heuristic_shortlist(q_user: Dict[str, Any],
     q_pace      = (q_user.get("travel_prefs") or {}).get("pace", "balanced")
     q_budget_b  = _band((q_user.get("budget") or {}).get("amount"))
 
+    # Capture query user's faith for bonus calculation
+    qf = (q_user.get("faith") or {})
+    q_token = _faith_slug(qf.get("religion") or "")
+    q_policy = qf.get("policy","open") if qf.get("consider_in_matching") else "open"
+
     scored = []
     for rec in cands:
         u = rec["user"]
@@ -559,6 +640,12 @@ def _heuristic_shortlist(q_user: Dict[str, Any],
         gap = abs(_band_idx(q_budget_b) - _band_idx(c_band))
         if gap == 0: score += 0.20
         elif gap == 1: score += 0.10
+        
+        # Faith soft bonus for prefer_same or same_only (same_only already enforced in hard filters)
+        c_token = ((mm.get("faith_preference") or {}).get("religion_token") or "")
+        if q_policy in {"prefer_same","same_only"} and q_token and c_token and q_token == c_token:
+            score += 0.15
+            
         scored.append((rec, score))
 
     scored.sort(key=lambda x: x[1], reverse=True)
@@ -630,6 +717,11 @@ def ai_prefilter(q_user: Dict[str, Any],
     q_pace      = (q_user.get("travel_prefs") or {}).get("pace", "balanced")
     q_budget_b  = _band((q_user.get("budget") or {}).get("amount"))
 
+    # Capture query user's faith for bonus calculation
+    qf = (q_user.get("faith") or {})
+    q_token = _faith_slug(qf.get("religion") or "")
+    q_policy = qf.get("policy","open") if qf.get("consider_in_matching") else "open"
+
     bonuses = []
     for rec in cands:
         u = rec["user"]
@@ -650,6 +742,12 @@ def ai_prefilter(q_user: Dict[str, Any],
         gap = abs(_band_idx(q_budget_b) - _band_idx(c_band))
         if gap == 0: b += 0.20
         elif gap == 1: b += 0.10
+        
+        # Faith soft bonus for prefer_same or same_only (same_only already enforced in hard filters)
+        c_token = ((mm.get("faith_preference") or {}).get("religion_token") or "")
+        if q_policy in {"prefer_same","same_only"} and q_token and c_token and q_token == c_token:
+            b += 0.15
+            
         bonuses.append(b)
 
     # combine normalized sims (with alignment) + bonuses
