@@ -23,22 +23,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 # ---------------------------------------------------------------------
-# Suppress unimportant warnings
-# ---------------------------------------------------------------------
-import warnings
-warnings.filterwarnings("ignore", category=FutureWarning)
-warnings.filterwarnings("ignore", category=UserWarning)
-warnings.filterwarnings("ignore", category=DeprecationWarning)
-warnings.filterwarnings("ignore", message=".*TRANSFORMERS_CACHE.*")
-warnings.filterwarnings("ignore", message=".*do_sample.*")
-warnings.filterwarnings("ignore", message=".*temperature.*")
-warnings.filterwarnings("ignore", message=".*top_p.*")
-
-# Suppress specific transformers warnings
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
-
-# ---------------------------------------------------------------------
 # Environment (set before any ML import)
 # ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
@@ -550,53 +534,12 @@ def ai_prefilter(q_user: Dict[str, Any],
     return [rec for rec, _ in combined[:k]]
 
 # ---------------------------------------------------------------------
-# Llama ranking (server-first with local fallback)
+# Llama ranking (4-bit quant, GPU)
 # ---------------------------------------------------------------------
-import requests
-
-# Global variables for local model fallback
 _LLM_FINETUNED = None
 _LLM_BASE = None
-_SERVER_AVAILABLE = None
-
-def check_server_availability():
-    """Check if Llama server is available"""
-    global _SERVER_AVAILABLE
-    if _SERVER_AVAILABLE is not None:
-        return _SERVER_AVAILABLE
-    
-    try:
-        response = requests.get("http://localhost:8002/health", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            _SERVER_AVAILABLE = data.get("ok", False)
-        else:
-            _SERVER_AVAILABLE = False
-    except Exception:
-        _SERVER_AVAILABLE = False
-    
-    return _SERVER_AVAILABLE
-
-def get_llama_ranking_server(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
-    """Get ranking from server"""
-    try:
-        response = requests.post(
-            "http://localhost:8002/rank",
-            json={
-                "prompt": prompt,
-                "max_new_tokens": max_new_tokens,
-                "temperature": temperature,
-                "top_p": top_p
-            },
-            timeout=30
-        )
-        return response.json()["text"]
-    except Exception as e:
-        print(f"Llama server error: {e}")
-        return None
 
 def _load_llama_4bit(path: Path):
-    """Load Llama model with 4-bit quantization"""
     bnb_cfg = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
@@ -617,78 +560,28 @@ def _load_llama_4bit(path: Path):
     return {"tokenizer": tok, "model": mdl}
 
 def ensure_llm_finetuned():
-    """Ensure finetuned model is loaded"""
     global _LLM_FINETUNED
     if _ML_OK and _LLM_FINETUNED is None:
         try:
-            print("Loading fine-tuned Llama (4-bit) locally...")
+            print("Loading fine-tuned Llama (4-bit)...")
             _LLM_FINETUNED = _load_llama_4bit(LLAMA_FINETUNED_PATH)
-            print("✅ Fine-tuned Llama loaded locally")
+            print("Fine-tuned Llama loaded.")
         except Exception as e:
             print(f"[warn] Fine-tuned Llama load failed: {e}")
             _LLM_FINETUNED = None
     return _LLM_FINETUNED
 
 def ensure_llm_base():
-    """Ensure base model is loaded"""
     global _LLM_BASE
     if _ML_OK and _LLM_BASE is None:
         try:
-            print("Loading base Llama (4-bit) locally...")
+            print("Loading base Llama (4-bit)...")
             _LLM_BASE = _load_llama_4bit(LLAMA_BASE_PATH)
-            print("✅ Base Llama loaded locally")
+            print("Base Llama loaded.")
         except Exception as e:
             print(f"[warn] Base Llama load failed: {e}")
             _LLM_BASE = None
     return _LLM_BASE
-
-def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9):
-    """Get ranking using local model"""
-    model_data = ensure_llm_finetuned()
-    if model_data is None:
-        model_data = ensure_llm_base()
-    if model_data is None:
-        return None
-
-    tok, mdl = model_data["tokenizer"], model_data["model"]
-    
-    # Prepare inputs
-    inputs = tok(prompt, return_tensors="pt", truncation=True, max_length=4096)
-    inputs = {k: v.to(mdl.device) for k, v in inputs.items()}
-
-    try:
-        with torch.inference_mode():
-            out = mdl.generate(
-                **inputs,
-                max_new_tokens=max_new_tokens,
-                do_sample=(temperature > 0.0),
-                temperature=temperature,
-                top_p=top_p,
-                use_cache=True,
-                pad_token_id=tok.eos_token_id,
-                eos_token_id=tok.eos_token_id,
-            )
-        gen = out[0][inputs["input_ids"].shape[1]:]
-        text = tok.decode(gen, skip_special_tokens=True)
-        return text
-    except Exception as e:
-        print(f"[warn] Local LLM generation failed: {e}")
-        return None
-
-def get_llama_ranking(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
-    """Get ranking from server or fallback to local model"""
-    # First try server
-    if check_server_availability():
-        print("🔄 Using Llama server...")
-        result = get_llama_ranking_server(prompt, max_new_tokens, temperature, top_p)
-        if result is not None:
-            return result
-        else:
-            print("⚠️  Server failed, falling back to local model...")
-    
-    # Fallback to local model
-    print("🔄 Using local Llama model...")
-    return get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
 
 def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_k:int=5) -> str:
     # Keep prompt compact
@@ -729,23 +622,52 @@ def _extract_json(text: str) -> Optional[dict]:
     return None
 
 def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=5) -> List[Dict[str,Any]]:
+    if not _ML_OK:
+        return llm_rank_fallback(q_user, shortlist, out_top)
+
     # Keep the LLM work small: only top-10 from shortlist
     shortlist_for_llm = shortlist[:10]
 
     system_prompt = "Return ONLY valid JSON with key 'matches'. No explanations. No extra text."
     prompt = build_llm_prompt(q_user, shortlist_for_llm, top_k=out_top)
-    
-    # Combine system prompt and user prompt
-    full_prompt = f"System: {system_prompt}\nUser: {prompt}\nAssistant:"
-    
-    # Use server for ranking
-    text = get_llama_ranking(full_prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
-    
-    if text is None:
-        print("[warn] Llama server unavailable, using fallback")
+
+    model_data = ensure_llm_finetuned()
+    if model_data is None:
+        model_data = ensure_llm_base()
+    if model_data is None:
         return llm_rank_fallback(q_user, shortlist_for_llm, out_top)
 
+    tok, mdl = model_data["tokenizer"], model_data["model"]
+
+    # Chat template if available; else simple prefix
+    if hasattr(tok, "apply_chat_template") and getattr(tok, "chat_template", None):
+        inputs = tok.apply_chat_template(
+            [{"role": "system", "content": system_prompt},
+             {"role": "user",   "content": prompt}],
+            add_generation_prompt=True,
+            return_tensors="pt",
+            truncation=True,
+            max_length=4096
+        )
+    else:
+        text = f"System: {system_prompt}\nUser: {prompt}\nAssistant:"
+        inputs = tok(text, return_tensors="pt", truncation=True, max_length=4096)
+
+    inputs = {k: v.to(mdl.device) for k, v in inputs.items()}
+
     try:
+        with torch.inference_mode():
+            out = mdl.generate(
+                **inputs,
+                max_new_tokens=120,     # tight cap = faster & enough
+                do_sample=False,        # deterministic for consistency
+                use_cache=True,
+                pad_token_id=tok.eos_token_id,
+                eos_token_id=tok.eos_token_id,
+            )
+        gen = out[0][inputs["input_ids"].shape[1]:]
+        text = tok.decode(gen, skip_special_tokens=True)
+
         parsed = _extract_json(text)
         if parsed and isinstance(parsed.get("matches", None), list):
             cleaned = []
@@ -762,7 +684,7 @@ def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=
             if cleaned:
                 return cleaned
     except Exception as e:
-        print(f"[warn] LLM response parsing failed: {e}")
+        print(f"[warn] LLM generation failed: {e}")
 
     return llm_rank_fallback(q_user, shortlist_for_llm, out_top)
 

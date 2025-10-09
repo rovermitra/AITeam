@@ -1829,5 +1829,342 @@
     "privacy": {
       "share_home_city": true
     }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "u_local_b3f1d0fb",
+    "name": "Noor",
+    "age": 25,
+    "gender": "Female",
+    "home_base": {
+      "city": "Hyderabad",
+      "country": "Pak",
+      "nearby_nodes": [],
+      "willing_radius_km": 40
+    },
+    "languages": [
+      "en",
+      "ur"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "stability",
+      "learning"
+    ],
+    "bio": "I love to travel , but I am only intrested to travel with girls not boys so suggest me only girls",
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "apartment"
+      ],
+      "room_setup": "twin",
+      "transport_allowed": [
+        "train",
+        "plane"
+      ],
+      "must_haves": [
+        "private_bath"
+      ]
+    },
+    "budget": {
+      "type": "per_day",
+      "amount": 200,
+      "currency": "EUR",
+      "split_rule": "50/50"
+    },
+    "diet_health": {
+      "diet": "halal",
+      "allergies": [
+        "none"
+      ],
+      "accessibility": "none"
+    },
+    "comfort": {
+      "risk_tolerance": "low",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "flexible",
+      "alcohol": "none",
+      "smoking": "never"
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 0,
+      "wifi_quality_needed": "good"
+    },
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_home_city": false,
+      "pre_meet_video_call_ok": false
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
+  },
+  {
+    "id": "test_save_user_llama",
+    "name": "Alex Berlin",
+    "age": 28,
+    "gender": "Other",
+    "home_base": {
+      "city": "Berlin",
+      "country": "Germany"
+    },
+    "languages": [
+      "en",
+      "de"
+    ],
+    "interests": [
+      "museum hopping",
+      "architecture walks",
+      "history sites"
+    ],
+    "values": [
+      "adventure",
+      "culture"
+    ],
+    "bio": "Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls",
+    "travel_prefs": {
+      "pace": "balanced"
+    },
+    "budget": {
+      "amount": 150,
+      "currency": "EUR"
+    },
+    "diet_health": {
+      "diet": "none"
+    },
+    "comfort": {
+      "smoking": "never",
+      "alcohol": "moderate"
+    },
+    "work": {
+      "remote_work_ok": false
+    },
+    "privacy": {
+      "share_home_city": true
+    }
   }
 ]

@@ -30,9 +30,8 @@ PREFILTER_MIN_K = int(os.getenv("RM_TEST_PREFILTER_MIN_K", "20"))
 TOP_K = int(os.getenv("RM_TEST_TOP_K", "5"))
 
 def choose_module_name() -> str:
-    print("🔧 Which module should I test? (press Enter for default)")
-    mod = input("[Updated_main / Updated_main_fast] [Updated_main]: ").strip()
-    return mod or "Updated_main"
+    print("🔧 Testing Updated_main module...")
+    return "Updated_main"
 
 def import_pipeline_module(mod_name: str):
     try:
@@ -61,7 +60,7 @@ def demo_test_users():
             'languages': ['en', 'de'],
             'interests': ['museum hopping', 'architecture walks', 'history sites'],
             'values': ['adventure', 'culture'],
-            'bio': 'Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages',
+            'bio': 'Berlin-based traveler who loves history and architecture; not interested to travel with girls,I want to travel only with boys with my ages not girls',
             'travel_prefs': {'pace': 'balanced'},
             'budget': {'amount': 150, 'currency': 'EUR'},
             'diet_health': {'diet': 'none'},
