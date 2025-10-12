@@ -14,6 +14,9 @@ RoverMitra implements a 3-stage matching pipeline:
 ```
 RoverMitra/
 ├── main.py                          # Main application entry point
+├── api.py                           # FastAPI REST API server for matching
+├── matcher.py                       # Core matching engine with 3-stage pipeline
+├── config.py                        # Configuration and path management
 ├── serve_llama.py                   # Llama model server (FastAPI)
 ├── build_bge_cache.py               # Build BGE-M3 embeddings cache
 ├── finetune_llama.py                # Fine-tuning script
@@ -245,7 +248,21 @@ CUDA_VISIBLE_DEVICES=0,1,2,3 python finetune_llama.py \
 
 ## Running the Application
 
-### Option 1: Server Mode (Recommended)
+### Option 1: REST API Mode (Recommended)
+```bash
+# Start the FastAPI REST API server
+python api.py
+# Server runs on http://localhost:8000
+# API documentation available at http://localhost:8000/docs
+```
+
+### Option 2: Interactive CLI Mode
+```bash
+# Run the interactive command-line application
+python main.py
+```
+
+### Option 3: Server Mode (Legacy)
 ```bash
 # Terminal 1: Start Llama server
 python serve_llama.py
@@ -254,13 +271,7 @@ python serve_llama.py
 python main.py
 ```
 
-### Option 2: Local Mode (Fallback)
-```bash
-# No server needed - uses local models
-python main.py
-```
-
-### Option 3: Background Server
+### Option 4: Background Server
 ```bash
 # Start server in background
 python serve_llama.py &
@@ -268,6 +279,35 @@ python serve_llama.py &
 # Run main application
 python main.py
 ```
+
+## Core Components
+
+### matcher.py - The Matching Engine
+The core matching engine that implements the 3-stage pipeline:
+
+- **Hard Prefilters**: Rule-based compatibility checks (age, gender, language, budget, pace, faith)
+- **AI Prefilter**: BGE-M3 semantic similarity matching with heuristic bonuses
+- **Final Ranking**: Fine-tuned Llama model for detailed compatibility analysis
+- **Fallback Systems**: Graceful degradation when ML models are unavailable
+- **Performance Optimized**: Uses pre-computed embeddings cache for fast similarity matching
+
+### api.py - REST API Server
+FastAPI-based REST API that provides HTTP endpoints for matching:
+
+- **POST /match**: Accepts user profiles and returns travel companion matches
+- **Pydantic Models**: Type-safe request/response validation
+- **Auto Documentation**: Interactive API docs at `/docs`
+- **Error Handling**: Comprehensive error handling with proper HTTP status codes
+- **Startup Integration**: Automatically loads data and models on startup
+
+### config.py - Configuration Management
+Centralized configuration and path management:
+
+- **Path Definitions**: All file paths and directories in one place
+- **Environment Setup**: ML library environment variables
+- **Model Paths**: BGE-M3, Llama base, and fine-tuned model locations
+- **Cache Paths**: Embeddings cache and model cache directories
+- **Easy Maintenance**: Single file to update when paths change
 
 ## How main.py Works
 
@@ -303,15 +343,46 @@ The `main.py` file implements the complete matching pipeline:
 - Provides detailed explanations for each match
 - Filters high-quality matches (score >= 75%)
 
-## API Endpoints (serve_llama.py)
+## API Endpoints
 
-### Health Check
+### REST API (api.py) - Port 8000
+
+#### Match Users
+```bash
+curl -X POST http://localhost:8000/match \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "John Doe",
+    "age": 28,
+    "gender": "Male",
+    "home_base": {"city": "New York", "country": "USA"},
+    "languages": ["English", "Spanish"],
+    "interests": ["hiking", "photography", "food"],
+    "values": ["adventure", "sustainability"],
+    "bio": "Love exploring new places",
+    "travel_prefs": {"pace": "balanced"},
+    "budget": {"amount": 150, "currency": "USD"},
+    "diet_health": {"diet": "vegetarian"},
+    "comfort": {"alcohol": "moderate"},
+    "work": {"remote": true},
+    "companion_preferences": {"genders_ok": ["anyone"]},
+    "faith": {"consider_in_matching": false, "religion": "", "policy": "open"}
+  }'
+```
+
+#### API Documentation
+- Interactive docs: http://localhost:8000/docs
+- OpenAPI schema: http://localhost:8000/openapi.json
+
+### Llama Server (serve_llama.py) - Port 8002
+
+#### Health Check
 ```bash
 curl http://localhost:8002/health
 # Returns: {"ok":true,"device":"cuda:0","model":"llama-travel-matcher"}
 ```
 
-### Text Generation
+#### Text Generation
 ```bash
 curl -X POST http://localhost:8002/rank \
   -H "Content-Type: application/json" \
@@ -366,8 +437,35 @@ curl http://localhost:8002/health
 ls -la users/data/users_core.json
 ls -la models_cache/bge_*.npy
 
-# Run application
-python main.py
+# Run application (choose one)
+python main.py          # Interactive CLI mode
+python api.py           # REST API server mode
+```
+
+### Testing the REST API
+```bash
+# Start the API server
+python api.py
+
+# Test the matching endpoint
+curl -X POST http://localhost:8000/match \
+  -H "Content-Type: application/json" \
+  -d @test_user.json
+
+# View interactive API documentation
+open http://localhost:8000/docs
+```
+
+### Development with Core Components
+```bash
+# Test the matching engine directly
+python -c "from matcher import load_pool, initialize_models, find_matches; load_pool(); initialize_models(); print('Ready for matching')"
+
+# Update configuration
+# Edit config.py to change paths or settings
+
+# Test API endpoints
+python -c "from api import app; print('API app loaded successfully')"
 ```
 
 ### Data Updates
@@ -382,6 +480,20 @@ python Scripts/matchmaker_data_generator.py
 python build_bge_cache.py
 ```
 
+## Recent Updates (October 12, 2024)
+
+### New Core Components Added
+- **`matcher.py`** (20.9KB): Complete 3-stage matching engine with ML integration
+- **`api.py`** (2.8KB): FastAPI REST API server for HTTP-based matching requests  
+- **`config.py`** (1.3KB): Centralized configuration and path management
+
+### Key Improvements
+- **REST API**: Full HTTP API with automatic documentation and type validation
+- **Modular Architecture**: Separated matching logic from API layer for better maintainability
+- **Configuration Management**: Single source of truth for all paths and settings
+- **Enhanced Error Handling**: Comprehensive error handling with graceful fallbacks
+- **Performance Optimized**: Pre-computed embeddings cache for faster similarity matching
+
 ## Key Features
 
 - **Scalable**: Handles 10k+ parallel user requests
@@ -391,6 +503,8 @@ python build_bge_cache.py
 - **Clean Output**: Suppressed warnings for better UX
 - **Cultural Awareness**: Authentic names and geographic data
 - **Rich Profiles**: Comprehensive travel preferences and personality data
+- **REST API**: Full HTTP API with interactive documentation
+- **Modular Design**: Clean separation of concerns between matching, API, and configuration
 
 ## License
 
