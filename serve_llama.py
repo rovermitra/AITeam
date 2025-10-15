@@ -65,14 +65,16 @@ def load_model_once():
     _DEVICE = "cuda:0" if use_cuda else "cpu"
 
     bnb_cfg_cls = _try_import_bnb()
-    kwargs: dict = {"trust_remote_code": True, "low_cpu_mem_usage": True}
+    kwargs: dict = {
+        "trust_remote_code": True, 
+        "low_cpu_mem_usage": True,
+        "torch_dtype": torch.float16 if use_cuda else torch.float32,
+        "device_map": "cpu" if not use_cuda else "auto"
+    }
 
     if use_cuda and bnb_cfg_cls is not None:
         quant_cfg = bnb_cfg_cls(load_in_4bit=True, bnb_4bit_quant_type="nf4", bnb_4bit_use_double_quant=True)
         kwargs.update(dict(device_map="auto", quantization_config=quant_cfg))
-    else:
-        import torch as _torch
-        kwargs.update(dict(torch_dtype=_torch.float16 if use_cuda else _torch.float32, device_map=None))
 
     def _load(model_path: str):
         print(f"Loading model from Hugging Face: {model_path}...")
@@ -84,13 +86,24 @@ def load_model_once():
 
     # Try finetuned first
     try:
+        print(f"Attempting to load fine-tuned model: {FINETUNED_PATH}")
         tok, mdl = _load(FINETUNED_PATH)
         _TOKENIZER, _MODEL = tok, mdl
-        _MODEL_NAME = FINETUNED_PATH.name
-    except Exception:
-        tok, mdl = _load(BASE_PATH)
-        _TOKENIZER, _MODEL = tok, mdl
-        _MODEL_NAME = BASE_PATH.name
+        _MODEL_NAME = "finetuned"
+        print(f"✅ Fine-tuned model loaded successfully")
+    except Exception as e:
+        print(f"❌ Fine-tuned model failed: {e}")
+        print(f"Falling back to base model: {BASE_PATH}")
+        try:
+            tok, mdl = _load(BASE_PATH)
+            _TOKENIZER, _MODEL = tok, mdl
+            _MODEL_NAME = "base"
+            print(f"✅ Base model loaded successfully")
+        except Exception as e2:
+            print(f"❌ Base model also failed: {e2}")
+            print("🚨 No model could be loaded!")
+            _MODEL_LOADING = False
+            return
 
     if _DEVICE == "cpu":
         _MODEL = _MODEL.to("cpu")
