@@ -1,30 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RoverMitra Matchmaker – fast path (cached BGE + 4-bit Llama)
+RoverMitra Matchmaker – CPU-only version for performance testing
 
 Pipeline:
-  Hard Prefilters  ->  AI Prefilter (BGE-M3 embeddings; cached)  ->  Final Ranking (Llama-4bit)
+  Hard Prefilters  ->  AI Prefilter (BGE-M3 embeddings; cached)  ->  Final Ranking (Llama-CPU)
 
 Final Ranking:
-  Try local fine-tuned Llama at models/llama-travel-matcher (4-bit on GPU).
-  If it fails, try base models/llama-3.2-3b-instruct (4-bit on GPU).
+  Try local fine-tuned Llama at models/llama-travel-matcher (CPU).
+  If it fails, try base models/llama-3.2-3b-instruct (CPU).
   If both fail, fall back to heuristic scorer.
 
 First run once:  python build_bge_cache.py
 Then run this script normally.
 
-Requires: bitsandbytes (for 4-bit), sentence-transformers, transformers, torch (CUDA)
+Requires: sentence-transformers, transformers, torch (CPU-only)
 """
 
 from __future__ import annotations
 import os, re, json, uuid, math, sys, time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from dotenv import load_dotenv
-
-# Load environment variables
-load_dotenv()
 
 # ---------------------------------------------------------------------
 # Suppress unimportant warnings
@@ -39,26 +35,22 @@ warnings.filterwarnings("ignore", message=".*temperature.*")
 warnings.filterwarnings("ignore", message=".*top_p.*")
 
 # Suppress specific transformers warnings
-os.environ["TOKENIZERS_PARALLELISM"] = os.getenv("TOKENIZERS_PARALLELISM", "false")
-os.environ["PYTORCH_CUDA_ALLOC_CONF"] = os.getenv("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:512")
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# Remove CUDA-specific environment variables
+# os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:512"
 
 # ---------------------------------------------------------------------
-# Environment (set before any ML import)
+# Environment (set before any ML import) - FORCE CPU
 # ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 
-# Environment variables from .env file
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", os.getenv("CUDA_VISIBLE_DEVICES", "0"))
-os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", os.getenv("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1"))
-os.environ.setdefault("HF_HOME", os.getenv("HF_HOME", str(BASE_DIR / "models_cache")))
-os.environ.setdefault("TRANSFORMERS_CACHE", os.getenv("TRANSFORMERS_CACHE", str(BASE_DIR / "models_cache" / "transformers")))
-os.environ.setdefault("TORCH_HOME", os.getenv("TORCH_HOME", str(BASE_DIR / "models_cache" / "torch")))
-os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", os.getenv("HF_HUB_ENABLE_HF_TRANSFER", "0"))
-
-# Hugging Face token
-HF_TOKEN = os.getenv("HF_TOKEN")
-if HF_TOKEN:
-    os.environ["HF_TOKEN"] = HF_TOKEN
+# Force CPU usage
+os.environ["CUDA_VISIBLE_DEVICES"] = ""
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "1"
+os.environ["HF_HOME"] = str(BASE_DIR / "models_cache")
+os.environ["TRANSFORMERS_CACHE"] = str(BASE_DIR / "models_cache" / "transformers")
+os.environ["TORCH_HOME"] = str(BASE_DIR / "models_cache" / "torch")
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "0"
 
 # --- psutil guard (prevents circular-import crash if system psutil is broken) ---
 try:
@@ -80,11 +72,10 @@ USERS_CORE_PATH  = BASE_DIR / "users/data/users_core.json"
 MM_PATH          = BASE_DIR / "MatchMaker/data/matchmaker_profiles.json"
 LOCAL_DB_PATH    = BASE_DIR / "data/travel_ready_user_profiles.json"  # append new users here
 
-# Model paths from environment variables (Hugging Face Hub)
-BGE_M3_PATH              = os.getenv("BGE_M3_MODEL_PATH", "abdulghaffaransari9/rovermitra-bge-m3")
-LLAMA_FINETUNED_PATH     = os.getenv("LLAMA_FINETUNED_MODEL_PATH", "abdulghaffaransari9/rovermitra-travel-matcher")
-LLAMA_BASE_PATH          = os.getenv("LLAMA_BASE_MODEL_PATH", "abdulghaffaransari9/rovermitra-llama-base")
-BGE_CACHE_PATH           = os.getenv("BGE_CACHE_MODEL_PATH", "abdulghaffaransari9/rovermitra-bge-cache")
+MODELS_DIR               = BASE_DIR / "models"
+BGE_M3_PATH              = MODELS_DIR / "bge-m3"
+LLAMA_FINETUNED_PATH     = MODELS_DIR / "llama-travel-matcher"
+LLAMA_BASE_PATH          = MODELS_DIR / "llama-3.2-3b-instruct"
 
 # Embedding cache
 CACHE_DIR = BASE_DIR / "models_cache"
@@ -97,9 +88,10 @@ EMB_PATH  = CACHE_DIR / "bge_embeds_fp16.npy"
 try:
     import numpy as np
     import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+    from transformers import AutoTokenizer, AutoModelForCausalLM
     from sentence_transformers import SentenceTransformer
     _ML_OK = True
+    print("✅ ML stack loaded successfully (CPU-only mode)")
 except Exception as e:
     print(f"[warn] ML stack import failed: {e}", file=sys.stderr)
     _ML_OK = False
@@ -235,7 +227,7 @@ def clean_list_csv(s: str) -> List[str]:
 # Interactive profile builder
 # ---------------------------------------------------------------------
 def interactive_new_user() -> Dict[str, Any]:
-    print("\n🌍  Welcome! Let’s make trips easy to say yes to.\n(Quick taps, tiny questions, zero boredom.)\n")
+    print("\n🌍  Welcome! Let's make trips easy to say yes to.\n(Quick taps, tiny questions, zero boredom.)\n")
 
     print("— Basics —")
     name = ask("Your name (e.g., 'Aisha Khan' or 'Tom Müller')", "Alex Rivera")
@@ -263,7 +255,7 @@ def interactive_new_user() -> Dict[str, Any]:
 
     print("\n— Tempo —")
     pace = ask_choice("Trip pace", ["relaxed","balanced","packed"], "balanced")
-    chronotype = ask_choice("You’re most alive…", ["early bird","flexible","night owl"], "flexible")
+    chronotype = ask_choice("You're most alive…", ["early bird","flexible","night owl"], "flexible")
 
     print("\n— Money stuff (kept private) —")
     budget = ask_int("Comfortable budget per day (€)", 150)
@@ -577,21 +569,21 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
     return out
 
 # ---------------------------------------------------------------------
-# AI prefilter (BGE-M3 with cache; query-only encode)
+# AI prefilter (BGE-M3 with cache; query-only encode) - CPU ONLY
 # ---------------------------------------------------------------------
 _EMB: Optional[SentenceTransformer] = None
 _cached_ids = None
 _cached_embs = None
 
-def ensure_emb(device: str = "cuda"):
+def ensure_emb(device: str = "cpu"):
+    """Force CPU usage for embeddings"""
     global _EMB
     if not _ML_OK:
         return None
     if _EMB is None:
-        dev = device if (hasattr(torch, "cuda") and torch.cuda.is_available()) else "cpu"
-        print(f"Loading BGE-M3 embedding model from Hugging Face: {BGE_M3_PATH}...")
-        _EMB = SentenceTransformer(BGE_M3_PATH, device=dev, use_auth_token=HF_TOKEN)
-        print("BGE-M3 embedding model loaded.")
+        print("Loading BGE-M3 embedding model on CPU...")
+        _EMB = SentenceTransformer(str(BGE_M3_PATH), device="cpu")
+        print("✅ BGE-M3 embedding model loaded on CPU.")
     return _EMB
 
 def _load_bge_cache():
@@ -685,7 +677,7 @@ def ai_prefilter(q_user: Dict[str, Any],
     # For alignment: store index or None if missing
     cand_row_idx = [uid2idx.get(u) for u in cand_uids]
 
-    # Encode query only (GPU if available)
+    # Encode query only (CPU)
     model = ensure_emb()
     if model is None:
         print("[info] No embedding model; using heuristic shortlist.")
@@ -770,7 +762,7 @@ def ai_prefilter(q_user: Dict[str, Any],
     return [rec for rec, _ in combined[:k]]
 
 # ---------------------------------------------------------------------
-# Llama ranking (server-first with local fallback)
+# Llama ranking (CPU-only with local fallback)
 # ---------------------------------------------------------------------
 import requests
 
@@ -785,87 +777,98 @@ def check_server_availability():
     if _SERVER_AVAILABLE is not None:
         return _SERVER_AVAILABLE
 
-    try:
-        response = requests.get("http://localhost:8002/health", timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            _SERVER_AVAILABLE = data.get("ok", False)
-        else:
-            _SERVER_AVAILABLE = False
-    except Exception:
-        _SERVER_AVAILABLE = False
-
-    return _SERVER_AVAILABLE
+    # Try multiple ports in case server is running on different port
+    ports_to_try = [8002, 8000, 8001, 8003, 8004, 8005]
+    
+    for port in ports_to_try:
+        try:
+            response = requests.get(f"http://localhost:{port}/health", timeout=5)
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("ok", False):
+                    _SERVER_AVAILABLE = True
+                    print(f"✅ Found Llama server on port {port}")
+                    return True
+        except Exception:
+            continue
+    
+    _SERVER_AVAILABLE = False
+    return False
 
 def get_llama_ranking_server(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
     """Get ranking from server"""
-    try:
-        response = requests.post(
-            "http://localhost:8002/rank",
-            json={
-                "prompt": prompt,
-                "max_new_tokens": max_new_tokens,
-                "temperature": temperature,
-                "top_p": top_p
-            },
-            timeout=30
-        )
-        return response.json()["text"]
-    except Exception as e:
-        print(f"Llama server error: {e}")
-        return None
+    # Try multiple ports to find the server
+    ports_to_try = [8002, 8000, 8001, 8003, 8004, 8005]
+    
+    for port in ports_to_try:
+        try:
+            print(f"   Sending request to port {port} (this may take 30-60 seconds on CPU)...")
+            response = requests.post(
+                f"http://localhost:{port}/rank",
+                json={
+                    "prompt": prompt,
+                    "max_new_tokens": max_new_tokens,
+                    "temperature": temperature,
+                    "top_p": top_p
+                },
+                timeout=300  # Very long timeout for CPU inference (5 minutes)
+            )
+            if response.status_code == 200:
+                print(f"   ✅ Server responded successfully on port {port}")
+                return response.json()["text"]
+            else:
+                print(f"   Port {port} returned status {response.status_code}")
+        except Exception as e:
+            print(f"   Port {port} failed: {e}")
+            continue
+    
+    print(f"Llama server error: Could not connect to any server on ports {ports_to_try}")
+    return None
 
-def _load_llama_4bit(model_path: str):
-    """Load Llama model with 4-bit quantization from Hugging Face Hub"""
-    bnb_cfg = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_compute_dtype=torch.float16,
-        bnb_4bit_use_double_quant=True,
-    )
-    print(f"Loading Llama model from Hugging Face: {model_path}...")
-    tok = AutoTokenizer.from_pretrained(model_path, use_fast=True, use_auth_token=HF_TOKEN)
+def _load_llama_cpu(path: Path):
+    """Load Llama model on CPU (no quantization)"""
+    print(f"Loading Llama model from {path} on CPU...")
+    tok = AutoTokenizer.from_pretrained(str(path), use_fast=True)
     mdl = AutoModelForCausalLM.from_pretrained(
-        model_path,
-        quantization_config=bnb_cfg,
-        device_map="auto",
-        torch_dtype=torch.float16,
+        str(path),
+        torch_dtype=torch.float32,  # Use float32 for CPU
+        device_map="cpu",           # Force CPU
         trust_remote_code=True,
-        use_auth_token=HF_TOKEN,
     )
     mdl.config.use_cache = True
     if mdl.config.pad_token_id is None and tok.eos_token_id is not None:
         mdl.config.pad_token_id = tok.eos_token_id
+    print(f"✅ Llama model loaded on CPU")
     return {"tokenizer": tok, "model": mdl}
 
 def ensure_llm_finetuned():
-    """Ensure finetuned model is loaded from Hugging Face Hub"""
+    """Ensure finetuned model is loaded on CPU"""
     global _LLM_FINETUNED
     if _ML_OK and _LLM_FINETUNED is None:
         try:
-            print("Loading fine-tuned Llama (4-bit) from Hugging Face...")
-            _LLM_FINETUNED = _load_llama_4bit(LLAMA_FINETUNED_PATH)
-            print("✅ Fine-tuned Llama loaded from Hugging Face")
+            print("Loading fine-tuned Llama on CPU...")
+            _LLM_FINETUNED = _load_llama_cpu(LLAMA_FINETUNED_PATH)
+            print("✅ Fine-tuned Llama loaded on CPU")
         except Exception as e:
             print(f"[warn] Fine-tuned Llama load failed: {e}")
             _LLM_FINETUNED = None
     return _LLM_FINETUNED
 
 def ensure_llm_base():
-    """Ensure base model is loaded from Hugging Face Hub"""
+    """Ensure base model is loaded on CPU"""
     global _LLM_BASE
     if _ML_OK and _LLM_BASE is None:
         try:
-            print("Loading base Llama (4-bit) from Hugging Face...")
-            _LLM_BASE = _load_llama_4bit(LLAMA_BASE_PATH)
-            print("✅ Base Llama loaded from Hugging Face")
+            print("Loading base Llama on CPU...")
+            _LLM_BASE = _load_llama_cpu(LLAMA_BASE_PATH)
+            print("✅ Base Llama loaded on CPU")
         except Exception as e:
             print(f"[warn] Base Llama load failed: {e}")
             _LLM_BASE = None
     return _LLM_BASE
 
 def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9):
-    """Get ranking using local model"""
+    """Get ranking using local model on CPU"""
     model_data = ensure_llm_finetuned()
     if model_data is None:
         model_data = ensure_llm_base()
@@ -876,7 +879,8 @@ def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0
 
     # Prepare inputs
     inputs = tok(prompt, return_tensors="pt", truncation=True, max_length=4096)
-    inputs = {k: v.to(mdl.device) for k, v in inputs.items()}
+    # Force CPU device
+    inputs = {k: v.to("cpu") for k, v in inputs.items()}
 
     try:
         with torch.inference_mode():
@@ -898,7 +902,7 @@ def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0
         return None
 
 def get_llama_ranking(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
-    """Get ranking from server or fallback to local model"""
+    """Get ranking from server or fallback to local model on CPU"""
     # First try server
     if check_server_availability():
         print("🔄 Using Llama server...")
@@ -906,10 +910,10 @@ def get_llama_ranking(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
         if result is not None:
             return result
         else:
-            print("⚠️  Server failed, falling back to local model...")
+            print("⚠️  Server failed, falling back to local CPU model...")
 
-    # Fallback to local model
-    print("🔄 Using local Llama model...")
+    # Fallback to local model on CPU
+    print("🔄 Using local Llama model on CPU...")
     return get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
 
 def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_k:int=5) -> str:
@@ -1006,7 +1010,7 @@ def craft_specific_reason(q: Dict[str,Any], u: Dict[str,Any], mm: Optional[Dict[
     if pace_q == pace_u: hooks.append(f"matching {pace_q} pace")
     if budget_gap <= 30: hooks.append("similar daily budgets")
     if diet_u != "none" and diet_u == diet_q: hooks.append(f"both {diet_u}")
-    if city_u:   hooks.append(f"and they’re based in {city_u}")
+    if city_u:   hooks.append(f"and they're based in {city_u}")
     if not hooks:
         hooks.append("complementary interests and compatible travel habits")
     return "For you, this match fits because of " + ", ".join(hooks) + "."
@@ -1029,6 +1033,9 @@ def llm_rank_fallback(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out
 # Run
 # ---------------------------------------------------------------------
 def main():
+    print("🚀 Starting RoverMitra CPU-only version...")
+    print("📊 Performance timing will be displayed for each step\n")
+    
     q_user = interactive_new_user()
     append_to_json(q_user, LOCAL_DB_PATH)
     print(f"\n✅ Saved your profile to {LOCAL_DB_PATH}")
@@ -1041,7 +1048,8 @@ def main():
     # 1) Hard prefilters
     t0 = time.time()
     hard = hard_prefilter(q_user, pool)
-    print(f"✅ Hard prefilter: {len(hard)} candidates (in {time.time()-t0:.2f}s)")
+    t_hard = time.time() - t0
+    print(f"✅ Hard prefilter: {len(hard)} candidates (in {t_hard:.2f}s)")
     if not hard:
         print("No candidates remained after hard prefilters. Loosen languages, pace, or budget.")
         return
@@ -1049,7 +1057,8 @@ def main():
     # 2) AI prefilter (BGE cache → fast)
     t1 = time.time()
     shortlist = ai_prefilter(q_user, hard, percent=0.02, min_k=80)
-    print(f"✅ AI prefilter: {len(shortlist)} candidates (in {time.time()-t1:.2f}s)")
+    t_ai = time.time() - t1
+    print(f"✅ AI prefilter: {len(shortlist)} candidates (in {t_ai:.2f}s)")
     if not shortlist:
         print("No candidates after AI prefilter.")
         return
@@ -1057,10 +1066,20 @@ def main():
     # 3) Llama ranking (uses fine-tuned first)
     t2 = time.time()
     final = llm_rank(q_user, shortlist, out_top=5)
-    print(f"✅ Llama ranking produced {len(final)} matches (in {time.time()-t2:.2f}s)")
+    t_llm = time.time() - t2
+    print(f"✅ Llama ranking produced {len(final)} matches (in {t_llm:.2f}s)")
 
     # 4) Threshold >= 0.75
     high_quality = [m for m in final if float(m.get("compatibility_score", 0)) >= 0.75]
+
+    # Performance summary
+    total_time = time.time() - t0
+    print(f"\n📈 PERFORMANCE SUMMARY:")
+    print(f"   Hard prefilter: {t_hard:.2f}s")
+    print(f"   AI prefilter:   {t_ai:.2f}s")
+    print(f"   Llama ranking:  {t_llm:.2f}s")
+    print(f"   Total time:     {total_time:.2f}s")
+    print(f"   Candidates processed: {len(pool)} → {len(hard)} → {len(shortlist)} → {len(final)}")
 
     print("\n— Top Recommendations —")
     if not high_quality:

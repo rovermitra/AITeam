@@ -4,6 +4,10 @@ import os, typing as t, socket
 from pathlib import Path
 from fastapi import FastAPI, Body
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # ───── Warnings off ─────
 import warnings
@@ -17,14 +21,19 @@ warnings.filterwarnings("ignore", message=".*top_p.*")
 
 # ───── Env (offline-friendly caches) ─────
 BASE_DIR = Path(__file__).resolve().parent
-os.environ.setdefault("HF_HOME", str(BASE_DIR / "models_cache"))
-os.environ.setdefault("TRANSFORMERS_CACHE", str(BASE_DIR / "models_cache" / "transformers"))
-os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
-os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+os.environ.setdefault("HF_HOME", os.getenv("HF_HOME", str(BASE_DIR / "models_cache")))
+os.environ.setdefault("TRANSFORMERS_CACHE", os.getenv("TRANSFORMERS_CACHE", str(BASE_DIR / "models_cache" / "transformers")))
+os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", os.getenv("HF_HUB_ENABLE_HF_TRANSFER", "0"))
+os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", os.getenv("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1"))
 
-# ───── Model paths ─────
-FINETUNED_PATH = BASE_DIR / "models" / "llama-travel-matcher"
-BASE_PATH      = BASE_DIR / "models" / "llama-3.2-3b-instruct"
+# Hugging Face token
+HF_TOKEN = os.getenv("HF_TOKEN")
+if HF_TOKEN:
+    os.environ["HF_TOKEN"] = HF_TOKEN
+
+# ───── Model paths (Hugging Face Hub) ─────
+FINETUNED_PATH = os.getenv("LLAMA_FINETUNED_MODEL_PATH", "abdulghaffaransari9/rovermitra-travel-matcher")
+BASE_PATH      = os.getenv("LLAMA_BASE_MODEL_PATH", "abdulghaffaransari9/rovermitra-llama-base")
 
 # ───── Globals ─────
 _TOKENIZER = None
@@ -61,9 +70,10 @@ def load_model_once():
         import torch as _torch
         kwargs.update(dict(torch_dtype=_torch.float16 if use_cuda else _torch.float32, device_map=None))
 
-    def _load(path: Path):
-        tok = AutoTokenizer.from_pretrained(str(path))
-        mdl = AutoModelForCausalLM.from_pretrained(str(path), **kwargs)
+    def _load(model_path: str):
+        print(f"Loading model from Hugging Face: {model_path}...")
+        tok = AutoTokenizer.from_pretrained(model_path, use_auth_token=HF_TOKEN)
+        mdl = AutoModelForCausalLM.from_pretrained(model_path, use_auth_token=HF_TOKEN, **kwargs)
         if mdl.config.pad_token_id is None and tok.eos_token_id is not None:
             mdl.config.pad_token_id = tok.eos_token_id
         return tok, mdl

@@ -1,0 +1,19 @@
+# Railway Configuration
+# This file tells Railway how to deploy RoverMitra
+
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python serve_llama.py"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
+
+[env]
+# Railway will automatically set these from your .env file
+# HF_TOKEN = "your_token_here"
+# CUDA_VISIBLE_DEVICES = ""
+# TRANSFORMERS_CACHE = "/tmp/transformers_cache"
+# HF_HOME = "/tmp/hf_home"
