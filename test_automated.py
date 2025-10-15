@@ -49,18 +49,18 @@ def import_pipeline_module(mod_name: str):
     return mod
 
 def demo_test_users():
-    """Four varied profiles to exercise the pipeline with gender and faith preferences."""
+    """Four varied profiles to showcase different travel personalities and authentic adjectives."""
     return [
         {
-            'id': 'test_user_1',
+            'email': 'test_user_1@rovermitra.example',
             'name': 'Alex Berlin',
             'age': 28,
-            'gender': 'Other',
+            'gender': 'Male',
             'home_base': {'city': 'Berlin', 'country': 'Germany'},
             'languages': ['en', 'de'],
-            'interests': ['museum hopping', 'architecture walks', 'history sites'],
-            'values': ['adventure', 'culture'],
-            'bio': 'Berlin-based traveler who loves history and architecture',
+            'interests': ['museums', 'architecture', 'history', 'photography', 'bookstores'],
+            'values': ['culture', 'learning'],
+            'bio': 'Berlin-based culture enthusiast who loves museums, architecture, and capturing moments through photography',
             'travel_prefs': {'pace': 'balanced'},
             'budget': {'amount': 150, 'currency': 'EUR'},
             'diet_health': {'diet': 'none'},
@@ -78,15 +78,15 @@ def demo_test_users():
             'privacy': {'share_home_city': True}
         },
         {
-            'id': 'test_user_2',
+            'email': 'test_user_2@rovermitra.example',
             'name': 'Maria Munich',
             'age': 32,
             'gender': 'Female',
             'home_base': {'city': 'Munich', 'country': 'Germany'},
             'languages': ['de', 'en', 'it'],
-            'interests': ['food tours', 'vineyards', 'scenic trains'],
-            'values': ['luxury-taste', 'nature'],
-            'bio': 'Munich foodie who enjoys wine country and scenic journeys',
+            'interests': ['food tours', 'vineyards', 'scenic trains', 'coffee crawls', 'markets'],
+            'values': ['food', 'luxury-taste'],
+            'bio': 'Munich foodie and wine enthusiast who enjoys scenic train journeys and exploring local markets',
             'travel_prefs': {'pace': 'relaxed'},
             'budget': {'amount': 250, 'currency': 'EUR'},
             'diet_health': {'diet': 'vegetarian'},
@@ -104,19 +104,19 @@ def demo_test_users():
             'privacy': {'share_home_city': True}
         },
         {
-            'id': 'test_user_3',
-            'name': 'Tom Hamburg',
+            'email': 'test_user_3@rovermitra.example',
+            'name': 'Tom Karachi',
             'age': 24,
             'gender': 'Male',
             'home_base': {'city': 'Karachi', 'country': 'Pakistan'},
-            'languages': ['en', 'de'],
-            'interests': ['festivals', 'live music', 'beach days'],
-            'values': ['adventure', 'community'],
-            'bio': 'Karachi student who loves music festivals and beach trips',
+            'languages': ['en', 'ur'],
+            'interests': ['festivals', 'live music', 'beaches', 'diving', 'nightlife'],
+            'values': ['adventure', 'social'],
+            'bio': 'Karachi adventure seeker who loves music festivals, beach diving, and vibrant nightlife',
             'travel_prefs': {'pace': 'packed'},
             'budget': {'amount': 80, 'currency': 'EUR'},
-            'diet_health': {'diet': 'none'},
-            'comfort': {'smoking': 'occasionally', 'alcohol': 'social'},
+            'diet_health': {'diet': 'halal'},
+            'comfort': {'smoking': 'occasionally', 'alcohol': 'none'},
             'work': {'remote_work_ok': False},
             'companion_preferences': {
                 'genders_ok': ["I'm open to travel with anyone"]
@@ -130,15 +130,15 @@ def demo_test_users():
             'privacy': {'share_home_city': False}
         },
         {
-            'id': 'test_user_4',
+            'email': 'test_user_4@rovermitra.example',
             'name': 'Priya Delhi',
             'age': 26,
             'gender': 'Female',
             'home_base': {'city': 'Delhi', 'country': 'India'},
             'languages': ['en', 'hi'],
-            'interests': ['temples', 'street food', 'yoga', 'meditation'],
-            'values': ['spirituality', 'learning'],
-            'bio': 'Delhi-based yoga instructor who loves spiritual journeys',
+            'interests': ['temples', 'yoga', 'meditation', 'wellness', 'thermal baths', 'spa'],
+            'values': ['spirituality', 'wellness'],
+            'bio': 'Delhi wellness warrior who finds peace in temples, yoga, meditation, and thermal spa experiences',
             'travel_prefs': {'pace': 'relaxed'},
             'budget': {'amount': 120, 'currency': 'EUR'},
             'diet_health': {'diet': 'vegetarian'},
@@ -216,22 +216,21 @@ def run_core_tests(mod):
         t1 = time.time()
         print(f"✅ Llama ranking produced {len(final)} matches (in {t1 - t0:.2f}s)")
 
-        # Show matches
-        faith_matches = 0
+        # Show matches with new format
+        print("— Top Recommendations —")
         for j, m in enumerate(final, 1):
             score = m.get("compatibility_score", 0.0)
             try:
                 pct = int(round(float(score) * 100))
             except Exception:
                 pct = 0
-            print(f"  {j}. {m.get('name','?')} — {pct}%")
-            print(f"     {m.get('explanation','(no explanation)')}")
             
-            # Count faith-aware matches for faith-conscious users
-            if q.get('faith', {}).get('consider_in_matching'):
-                # This would need to be checked against the actual candidate data
-                # For now, just note that we're testing faith-aware matching
-                pass
+            # Extract 4 key adjectives from explanation
+            explanation = m.get("explanation", "")
+            adjectives = mod.extract_key_adjectives(explanation)
+            
+            print(f"{j}. {m.get('name','?')} - {pct}%")
+            print(f"   {adjectives}")
         
         # Show faith-specific info for faith-conscious users
         if q.get('faith', {}).get('consider_in_matching'):
@@ -242,7 +241,7 @@ def run_core_tests(mod):
     # 3) Append-to-JSON smoke test
     try:
         save_user = users[0].copy()
-        save_user["id"] = "test_save_user_llama"
+        save_user["email"] = "test_save_user_llama@rovermitra.example"
         mod.append_to_json(save_user, mod.LOCAL_DB_PATH)
         print(f"\n✅ JSON append OK → {mod.LOCAL_DB_PATH}")
     except Exception as e:
@@ -257,7 +256,7 @@ def run_perf_tests(mod):
     print("\n⏱️  Performance snapshot…")
     try:
         q = {
-            'id': 'perf_user',
+            'email': 'perf_user@rovermitra.example',
             'name': 'Perf User',
             'age': 30,
             'gender': 'Other',

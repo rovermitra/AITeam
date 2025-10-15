@@ -7,7 +7,10 @@ import numpy as np
 from pathlib import Path
 
 # Reuse your project utils (imports only light helpers/paths)
-from main import load_pool, summarize_user, MODELS_DIR, CACHE_DIR, UIDS_PATH, EMB_PATH
+from main import load_pool, summarize_user, CACHE_DIR, UIDS_PATH, EMB_PATH
+
+# Define MODELS_DIR locally since it's not in main.py
+MODELS_DIR = Path(__file__).resolve().parent / "models"
 
 def pick_device() -> str:
     try:
@@ -36,19 +39,19 @@ def main():
     if not pool:
         raise SystemExit("No candidates found. Ensure users/data/users_core.json and MatchMaker/data/matchmaker_profiles.json exist.")
 
-    users_txt, user_ids = [], []
+    users_txt, user_emails = [], []
     seen = set()
     for rec in pool:
         u, mm = rec["user"], rec.get("mm")
-        uid = u.get("user_id")
-        if not uid or uid in seen:
+        email = u.get("email")
+        if not email or email in seen:
             continue
-        seen.add(uid)
+        seen.add(email)
         users_txt.append(summarize_user(u, mm))
-        user_ids.append(uid)
+        user_emails.append(email)
 
-    if not users_txt or len(users_txt) != len(user_ids):
-        raise SystemExit(f"Nothing to encode or length mismatch: texts={len(users_txt)} ids={len(user_ids)}")
+    if not users_txt or len(users_txt) != len(user_emails):
+        raise SystemExit(f"Nothing to encode or length mismatch: texts={len(users_txt)} emails={len(user_emails)}")
 
     device = pick_device()
     print(f"🔌 Using device: {device}")
@@ -78,16 +81,17 @@ def main():
     except Exception as e:
         raise SystemExit(f"Encoding failed: {e}")
 
-    if embs.shape[0] != len(user_ids):
-        raise SystemExit(f"Embedding count mismatch: embs={embs.shape[0]} ids={len(user_ids)}")
+    if embs.shape[0] != len(user_emails):
+        raise SystemExit(f"Embedding count mismatch: embs={embs.shape[0]} emails={len(user_emails)}")
 
     # Save cache
-    np.save(UIDS_PATH, np.array(user_ids, dtype=object))
+    np.save(UIDS_PATH, np.array(user_emails, dtype=object))
     np.save(EMB_PATH,  embs)
     print("✅ BGE cache built:")
     print("   ", UIDS_PATH)
     print("   ", EMB_PATH)
     print("ℹ️  Rows (N), Dim (D):", embs.shape)
+    print("ℹ️  Cache now uses emails instead of user_ids")
 
 if __name__ == "__main__":
     main()

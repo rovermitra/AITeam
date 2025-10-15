@@ -98,9 +98,9 @@ def availability_windows():
 def meeting_pref():
     return random.choice(["midpoint", "at_destination", "host_city", "no_preference"])
 
-def blocklist(user_ids, self_id):
-    if random.random() < 0.06 and len(user_ids) > 5:
-        pool = [u for u in user_ids if u != self_id]
+def blocklist(user_emails, self_email):
+    if random.random() < 0.06 and len(user_emails) > 5:
+        pool = [u for u in user_emails if u != self_email]
         k = random.randint(1, min(3, len(pool)))
         return random.sample(pool, k=k)
     return []
@@ -250,16 +250,16 @@ def main():
     users = json.loads(USERS_PATH.read_text(encoding="utf-8"))
     profiles = []
 
-    all_ids = [u.get("user_id") for u in users if u.get("user_id")]
+    all_emails = [u.get("email") for u in users if u.get("email")]
 
     for u in users:
-        uid = u.get("user_id")
-        if not uid:
+        email = u.get("email")
+        if not email:
             continue
 
         profile = {
             "match_profile_id": f"mm_{uuid.uuid4().hex[:12]}",
-            "user_id": uid,
+            "email": email,
             "status": "active",
             "created_at": datetime.utcnow().isoformat() + "Z",
             "updated_at": datetime.utcnow().isoformat() + "Z",
@@ -281,7 +281,7 @@ def main():
             "diet_compatibility_strictness": diet_strictness(u),
 
             "safety_settings": safety_block(u),
-            "blocklist_user_ids": blocklist(all_ids, uid),
+            "blocklist_user_emails": blocklist(all_emails, email),
 
             "match_quality_threshold": random.choice([0.75, 0.78, 0.80, 0.82, 0.85])
         }

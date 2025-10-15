@@ -88,7 +88,7 @@ BGE_CACHE_PATH           = os.getenv("BGE_CACHE_MODEL_PATH", "abdulghaffaransari
 
 # Embedding cache
 CACHE_DIR = BASE_DIR / "models_cache"
-UIDS_PATH = CACHE_DIR / "bge_user_ids.npy"
+UIDS_PATH = CACHE_DIR / "bge_user_emails.npy"
 EMB_PATH  = CACHE_DIR / "bge_embeds_fp16.npy"
 
 # ---------------------------------------------------------------------
@@ -399,12 +399,12 @@ def interactive_new_user() -> Dict[str, Any]:
 def load_pool():
     users = load_json(USERS_CORE_PATH)
     mm    = load_json(MM_PATH)
-    mm_by_uid = index_by(mm, "user_id")
+    mm_by_email = index_by(mm, "email")
     pool = []
     for u in users:
-        uid = u.get("user_id")
-        if not uid: continue
-        pool.append({"user": u, "mm": mm_by_uid.get(uid)})
+        email = u.get("email")
+        if not email: continue
+        pool.append({"user": u, "mm": mm_by_email.get(email)})
     return pool
 
 def summarize_user(u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
@@ -680,10 +680,10 @@ def ai_prefilter(q_user: Dict[str, Any],
         print(f"[warn] {e}  Using heuristic shortlist instead.")
         return _heuristic_shortlist(q_user, cands, percent, min_k)
 
-    uid2idx = {uid: i for i, uid in enumerate(ids)}
-    cand_uids = [rec["user"]["user_id"] for rec in cands]
+    email2idx = {email: i for i, email in enumerate(ids)}
+    cand_emails = [rec["user"]["email"] for rec in cands]
     # For alignment: store index or None if missing
-    cand_row_idx = [uid2idx.get(u) for u in cand_uids]
+    cand_row_idx = [email2idx.get(e) for e in cand_emails]
 
     # Encode query only (GPU if available)
     model = ensure_emb()
@@ -916,10 +916,10 @@ def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_
     # Keep prompt compact
     head = (
         "You are a precise travel-match expert. Rank candidates for holistic trip compatibility.\n"
-        "Consider: personality fit, conflict style, shared/complementary interests, languages, pace, budget, diet/substances, "
-        "risk tolerance, work needs, values, cultural/religious needs, and any constraints from the user's bio.\n"
+        "Focus on: shared interests, complementary activities, budget compatibility, language overlap, "
+        "travel pace, dietary needs, transport preferences, accommodation types, and cultural compatibility.\n"
         "Trip context: weekend to multi-week.\n"
-        "Return ONLY valid JSON with key 'matches' as an array of objects with fields: user_id, name, explanation "
+        "Return ONLY valid JSON with key 'matches' as an array of objects with fields: email, name, explanation "
         "(ONE sentence, must start with 'For you,' and be specific), compatibility_score (0.0–1.0).\n\n"
         "Query User:\n"
         f"{query_text(q_user)}\n\n"
@@ -928,7 +928,7 @@ def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_
     body = []
     for i, rec in enumerate(shortlist):
         u, m = rec["user"], rec["mm"]
-        body.append(f"[{i+1}] user_id={u.get('user_id')} | {summarize_user(u, m)}")
+        body.append(f"[{i+1}] email={u.get('email')} | {summarize_user(u, m)}")
     return head + "\n".join(body)
 
 def _extract_json(text: str) -> Optional[dict]:
@@ -974,7 +974,7 @@ def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=
             for m in parsed["matches"][:out_top]:
                 try:
                     cleaned.append({
-                        "user_id": str(m.get("user_id","")),
+                        "email": str(m.get("email","")),
                         "name": str(m.get("name","")),
                         "explanation": str(m.get("explanation","")),
                         "compatibility_score": float(m.get("compatibility_score", 0.0))
@@ -987,6 +987,82 @@ def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=
         print(f"[warn] LLM response parsing failed: {e}")
 
     return llm_rank_fallback(q_user, shortlist_for_llm, out_top)
+def extract_key_adjectives(explanation: str) -> str:
+    """
+    Return 4 simple, clear, human-friendly adjectives or short adjective phrases.
+    Never return nouns like 'Train' or unclear words like 'Relaxed' or 'Budget'.
+    Uses 'Foody' as preferred spelling.
+    """
+    text = (explanation or "").lower()
+
+    # Ordered candidates. First matches have higher priority.
+    rules = [
+        # Pace
+        (r"\b(relaxed|slow|easy|chill|laid back)\b",           "Calm"),
+        (r"\bbalanced|moderate\b",                             "Balanced pace"),
+        (r"\bpacked|fast|full itinerary|tight schedule\b",     "Fast pace"),
+
+        # Budget
+        (r"\bbudget|backpack(ing|er)|hostel\b",                "Budget friendly"),
+        (r"\bluxury|5 ?star|upscale|premium\b",                 "Luxury minded"),
+
+        # Interests
+        (r"\bhike|hiking|mountain|trail|trek\b",               "Adventurous"),
+        (r"\bmuseum|history|architecture|gallery|heritage\b",  "Cultural"),
+        (r"\bfood|street food|restaurant|market\b",            "Foody"),
+        (r"\bphoto|photography|scenic|view|rooftop\b",         "Creative"),
+        (r"\bfestival|nightlife|club|party|live music\b",      "Social"),
+        (r"\bspa|wellness|thermal|meditat(e|ion)|yoga\b",      "Wellness focused"),
+        (r"\bbeach|island|coast|sunbath(ing)?\b",              "Beach loving"),
+        (r"\black|forest|lake|nature|outdoor\b",               "Nature loving"),
+
+        # Languages
+        (r"\bmultilingual|speak(s)? (many|multiple) language(s)?\b", "Speaks many languages"),
+        (r"\blanguage(s)?\b",                                   "Speaks many languages"),
+
+        # Food needs / diet
+        (r"\bvegetarian\b",                                     "Vegetarian friendly"),
+        (r"\bvegan\b",                                          "Vegan friendly"),
+        (r"\bhalal\b",                                          "Halal friendly"),
+        (r"\bkosher\b",                                         "Kosher friendly"),
+        (r"\bgluten[- ]?free\b",                                "Gluten-free friendly"),
+
+        # Work and comfort
+        (r"\bremote work|workation|needs wifi|wifi\b",          "Remote-work friendly"),
+        (r"\bquiet|low noise\b",                                "Quiet"),
+        (r"\blively|high noise\b",                              "Lively"),
+        (r"\bclean|tidy\b",                                     "Tidy"),
+        (r"\beasygoing|flexible\b",                             "Easygoing"),
+
+        # Transport hints (keep adjectival, not nouns)
+        (r"\btrain|public transport|tram|metro\b",              "Public-transport friendly"),
+        (r"\broad trip|car\b",                                  "Road-trip ready"),
+        (r"\bplane|flight\b",                                   "Flight ready"),
+    ]
+
+    # Collect unique traits in order
+    traits = []
+    import re
+    for pat, label in rules:
+        if re.search(pat, text) and label not in traits:
+            traits.append(label)
+        if len(traits) >= 4:
+            break
+
+    # Sensible, simple fallbacks if we found fewer than 4
+    fallbacks = ["Friendly", "Cultural", "Foody", "Open minded", "Adventurous", "Calm", "Budget friendly"]
+    for fb in fallbacks:
+        if len(traits) >= 4:
+            break
+        if fb not in traits:
+            traits.append(fb)
+
+    # Final cleanup: keep exactly 4, title-case consistently, no trailing spaces
+    def tidy(s: str) -> str:
+        # Keep intended capitalization for phrases
+        return s.strip()
+
+    return ", ".join(tidy(t) for t in traits[:4])
 
 def craft_specific_reason(q: Dict[str,Any], u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
     qi = set(q.get("interests",[]))
@@ -1006,7 +1082,7 @@ def craft_specific_reason(q: Dict[str,Any], u: Dict[str,Any], mm: Optional[Dict[
     if pace_q == pace_u: hooks.append(f"matching {pace_q} pace")
     if budget_gap <= 30: hooks.append("similar daily budgets")
     if diet_u != "none" and diet_u == diet_q: hooks.append(f"both {diet_u}")
-    if city_u:   hooks.append(f"and they’re based in {city_u}")
+    if city_u:   hooks.append(f"and they're based in {city_u}")
     if not hooks:
         hooks.append("complementary interests and compatible travel habits")
     return "For you, this match fits because of " + ", ".join(hooks) + "."
@@ -1018,7 +1094,7 @@ def llm_rank_fallback(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out
         reason = craft_specific_reason(q_user, u, rec.get("mm"))
         score = 0.70 + 0.25 * jaccard(q_user.get("interests",[]), u.get("interests",[]))
         results.append({
-            "user_id": u.get("user_id"),
+            "email": u.get("email"),
             "name": u.get("name"),
             "explanation": reason,
             "compatibility_score": round(min(max(score, 0.0), 0.99), 2)
@@ -1063,24 +1139,18 @@ def main():
     high_quality = [m for m in final if float(m.get("compatibility_score", 0)) >= 0.75]
 
     print("\n— Top Recommendations —")
-    if not high_quality:
-        print("No high-quality matches found (score >= 75%). Here are your top results:")
-        for i, m in enumerate(final, 1):
-            try:
-                pct = int(round(float(m.get("compatibility_score",0))*100))
-            except Exception:
-                pct = 0
-            print(f"{i}. {m.get('name')} (user_id: {m.get('user_id')})  —  {pct}%")
-            print(f"   {m.get('explanation')}\n")
-        return
-
-    for i, m in enumerate(high_quality, 1):
+    for i, m in enumerate(final, 1):
         try:
             pct = int(round(float(m.get("compatibility_score",0))*100))
         except Exception:
             pct = 0
-        print(f"{i}. {m.get('name')} (user_id: {m.get('user_id')})  —  {pct}%")
-        print(f"   {m.get('explanation')}\n")
+        
+        # Extract 4 key adjectives from explanation
+        explanation = m.get("explanation", "")
+        adjectives = extract_key_adjectives(explanation)
+        
+        print(f"{i}. {m.get('name')} - {pct}%")
+        print(f"   {adjectives}")
 
 if __name__ == "__main__":
     main()

@@ -64,6 +64,10 @@ artifacts/
 test_output/
 tmp/
 
+# Sensitive data files - DO NOT UPLOAD TO GITHUB
+travel_ready_user_profiles.json
+data/travel_ready_user_profiles.json
+
 # Virtual environments and package directories
 matchmaker/
 
@@ -95,6 +99,14 @@ models/
 *.pth
 *.ckpt
 checkpoints/
+
+# BGE Cache files - DO NOT UPLOAD TO GITHUB
+models_cache/bge_embeds_fp16.npy
+models_cache/bge_user_emails.npy
+models_cache/bge_user_ids.npy
+models_cache/bge_cache/
+models_cache/hub/
+models_cache/transformers/
 
 # -------------------------
 # Other big files

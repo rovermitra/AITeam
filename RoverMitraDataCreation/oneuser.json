@@ -1,0 +1,334 @@
+[
+  {
+    "email": "james.brown@rovermitra.example",
+    "password": "Pass@976006",
+    "confirmPassword": "Pass@976006",
+    "firstName": "James",
+    "lastName": "Brown",
+    "middleName": "",
+    "phoneNumber": "+61-376-395-9311",
+    "dateOfBirth": "1999-07-18T00:00:00",
+    "address": "3008 Riverside Rd",
+    "city": "Los Angeles",
+    "state": "",
+    "postalCode": "25375",
+    "country": "USA",
+    "name": "James Brown",
+    "age": 26,
+    "gender": "Non-binary",
+    "contact": {
+      "rovermitra_handle": "rm_james.brown",
+      "email": "james.brown@rovermitra.example"
+    },
+    "home_base": {
+      "city": "Los Angeles",
+      "country": "USA",
+      "nearby_nodes": [
+        "Los Angeles Central Station",
+        "LAX"
+      ],
+      "willing_radius_km": 60
+    },
+    "languages": [
+      "en",
+      "es"
+    ],
+    "interests": [
+      "live music",
+      "vlogging",
+      "chess",
+      "mountain hiking",
+      "thermal baths",
+      "city photography"
+    ],
+    "values": [
+      "family",
+      "spirituality",
+      "fitness"
+    ],
+    "personality": {
+      "openness": 0.21,
+      "conscientiousness": 0.85,
+      "extraversion": 0.73,
+      "agreeableness": 0.9,
+      "neuroticism": 0.53,
+      "creativity": 0.62,
+      "empathy": 0.28
+    },
+    "bio": "James Brown from Los Angeles loves city photography, vlogging and enjoys daydreaming about memorable trips.",
+    "budget": {
+      "type": "per_day",
+      "amount": 144,
+      "currency": "USD",
+      "split_rule": "each_own"
+    },
+    "diet_health": {
+      "diet": "vegetarian",
+      "allergies": [
+        "gluten"
+      ],
+      "accessibility": "elevator_needed"
+    },
+    "comfort": {
+      "risk_tolerance": "low",
+      "noise_tolerance": "high",
+      "cleanliness_preference": "low",
+      "chronotype": "night owl",
+      "alcohol": "moderate",
+      "smoking": "regular"
+    },
+    "social": {
+      "group_size_ok": [
+        1,
+        2
+      ],
+      "learning_style": "Kinesthetic",
+      "humor_style": "Playful",
+      "dealbreakers_social": []
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 1,
+      "wifi_quality_needed": "excellent"
+    },
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "boutique"
+      ],
+      "room_setup": "twin",
+      "transport_allowed": [
+        "car",
+        "plane",
+        "train"
+      ],
+      "must_haves": [
+        "wifi"
+      ]
+    },
+    "trip_intentions": [
+      "history & museums track",
+      "weekend city breaks"
+    ],
+    "companion_preferences": {
+      "group_preference": "bigger group (5+)",
+      "genders_ok": [
+        "women"
+      ],
+      "age_range_preferred": [
+        25,
+        35
+      ],
+      "kids_ok_in_group": false,
+      "pets_ok_in_group": true
+    },
+    "lifestyle": {
+      "fitness_level": "active",
+      "daily_steps_goal": "8-12k",
+      "caffeine": "tea",
+      "sleeping_habits": "light sleeper",
+      "snoring_tolerance": "prefer not"
+    },
+    "boundaries_safety": {
+      "quiet_hours": "flexible",
+      "photo_consent": "ask first",
+      "social_media": "share occasionally",
+      "substance_boundaries": "alcohol in moderation",
+      "share_location_with_group": false
+    },
+    "causes": [
+      "stop asian hate",
+      "environmentalism",
+      "volunteering"
+    ],
+    "prompts": [
+      {
+        "section": "About me",
+        "prompt": "I’m known for",
+        "answer": "coffee at sunrise"
+      },
+      {
+        "section": "Real talk",
+        "prompt": "I show I care by",
+        "answer": "train-window playlists"
+      }
+    ],
+    "opening_move": "What’s your undefeated travel snack?",
+    "looking_to_meet": "men",
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_itinerary_with_group": true,
+      "marketing_opt_in": true
+    }
+  },
+  {
+    "email": "camille.dubois@rovermitra.example",
+    "password": "Pass@751989",
+    "confirmPassword": "Pass@751989",
+    "firstName": "Camille",
+    "lastName": "Dubois",
+    "middleName": "",
+    "phoneNumber": "+49-502-753-5526",
+    "dateOfBirth": "2005-05-28T00:00:00",
+    "address": "7446 Lake St",
+    "city": "Nice",
+    "state": "",
+    "postalCode": "621585",
+    "country": "France",
+    "name": "Camille Dubois",
+    "age": 20,
+    "gender": "Female",
+    "contact": {
+      "rovermitra_handle": "rm_camille.dubois",
+      "email": "camille.dubois@rovermitra.example"
+    },
+    "home_base": {
+      "city": "Nice",
+      "country": "France",
+      "nearby_nodes": [
+        "Nice Central Station",
+        "NCE"
+      ],
+      "willing_radius_km": 25
+    },
+    "languages": [
+      "en"
+    ],
+    "interests": [
+      "chess",
+      "local crafts",
+      "theatre",
+      "robotics",
+      "beach days",
+      "camping",
+      "language exchange",
+      "thermal baths",
+      "short hikes",
+      "road trips"
+    ],
+    "values": [
+      "adventure",
+      "learning"
+    ],
+    "personality": {
+      "openness": 0.16,
+      "conscientiousness": 0.7,
+      "extraversion": 0.24,
+      "agreeableness": 0.32,
+      "neuroticism": 0.12,
+      "creativity": 0.53,
+      "empathy": 0.28
+    },
+    "bio": "Camille Dubois from Nice loves language exchange, beach days and enjoys sharing memorable trips.",
+    "budget": {
+      "type": "per_day",
+      "amount": 185,
+      "currency": "EUR",
+      "split_rule": "custom"
+    },
+    "diet_health": {
+      "diet": "no pork",
+      "allergies": [
+        "nuts"
+      ],
+      "accessibility": "reduced_mobility"
+    },
+    "comfort": {
+      "risk_tolerance": "medium",
+      "noise_tolerance": "medium",
+      "cleanliness_preference": "medium",
+      "chronotype": "early bird",
+      "alcohol": "social",
+      "smoking": "occasionally"
+    },
+    "social": {
+      "group_size_ok": [
+        2,
+        3,
+        4
+      ],
+      "learning_style": "Auditory",
+      "humor_style": "Slapstick",
+      "dealbreakers_social": [
+        "no >2 transfers"
+      ]
+    },
+    "work": {
+      "remote_work_ok": false,
+      "hours_online_needed": 2,
+      "wifi_quality_needed": "excellent"
+    },
+    "travel_prefs": {
+      "pace": "balanced",
+      "accommodation_types": [
+        "hotel",
+        "guesthouse"
+      ],
+      "room_setup": "twin",
+      "transport_allowed": [
+        "car",
+        "plane"
+      ],
+      "must_haves": [
+        "private_bath",
+        "kitchen"
+      ]
+    },
+    "trip_intentions": [
+      "weekend city breaks",
+      "workation with good wifi",
+      "festival/ events chasing"
+    ],
+    "companion_preferences": {
+      "group_preference": "solo",
+      "genders_ok": [
+        "any"
+      ],
+      "age_range_preferred": [
+        24,
+        39
+      ],
+      "kids_ok_in_group": true,
+      "pets_ok_in_group": false
+    },
+    "lifestyle": {
+      "fitness_level": "light",
+      "daily_steps_goal": "12k+",
+      "caffeine": "either",
+      "sleeping_habits": "light sleeper",
+      "snoring_tolerance": "earplugs ready"
+    },
+    "boundaries_safety": {
+      "quiet_hours": "flexible",
+      "photo_consent": "no faces on public socials",
+      "social_media": "fine with tagging",
+      "substance_boundaries": "no cigarettes in room",
+      "share_location_with_group": false
+    },
+    "causes": [],
+    "prompts": [
+      {
+        "section": "About me",
+        "prompt": "After work you can find me",
+        "answer": "always early for trains"
+      },
+      {
+        "section": "Real talk",
+        "prompt": "A pro and a con of traveling with me",
+        "answer": "coffee at sunrise"
+      },
+      {
+        "section": "Looking for",
+        "prompt": "What makes a great travel partner is",
+        "answer": "always early for trains"
+      }
+    ],
+    "opening_move": "What’s your undefeated travel snack?",
+    "looking_to_meet": "men",
+    "privacy": {
+      "share_profile_with_matches": true,
+      "share_itinerary_with_group": true,
+      "marketing_opt_in": true
+    }
+  }
+]

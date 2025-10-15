@@ -195,12 +195,31 @@ def split_name(full_name: str):
     middle = " ".join(parts[1:-1]) if len(parts) > 2 else ""
     return first, middle, last
 
-def email_from_name(full_name: str):
-    base = _strip_accents(full_name).replace("'", "").replace("’", "")
+def email_from_name(full_name: str, used_emails: set):
+    """Generate unique email from name with random number suffix"""
+    base = _strip_accents(full_name).replace("'", "").replace("'", "")
     parts = base.lower().replace("-", " ").split()
     first_token = parts[0] if parts else "user"
     last_token  = parts[-1] if len(parts) > 1 else "rm"
-    return f"{first_token}.{last_token}@rovermitra.example"
+    
+    # Try base email first
+    base_email = f"{first_token}.{last_token}@rovermitra.example"
+    if base_email not in used_emails:
+        used_emails.add(base_email)
+        return base_email
+    
+    # If duplicate, add random number
+    for _ in range(100):  # Try up to 100 times
+        random_num = random.randint(0, 10000)
+        unique_email = f"{first_token}.{last_token}{random_num:04d}@rovermitra.example"
+        if unique_email not in used_emails:
+            used_emails.add(unique_email)
+            return unique_email
+    
+    # Fallback with UUID if still duplicate
+    unique_email = f"{first_token}.{last_token}{uuid.uuid4().hex[:4]}@rovermitra.example"
+    used_emails.add(unique_email)
+    return unique_email
 
 def fake_phone(country: str):
     # COUNTRY_PHONE_CODE is imported in main() before we call this
@@ -437,7 +456,7 @@ def build_user(
     GENDERS, VALUES, INTERESTS, DIET, ALCOHOL, SMOKING,
     ACCOM_TYPES, TRANSPORT, PROMPTS, OPENING_MOVE_TEMPLATES,
     COMPANION_TYPES, COMPANION_GENDER_PREF,
-    COUNTRY_CULTURE, SWISS_LANG_TO_CULT, NAMES
+    COUNTRY_CULTURE, SWISS_LANG_TO_CULT, NAMES, used_emails
 ):
     loc = random.choice(LOCATION_DATA)
     city, country, airports, langs = loc["city"], loc["country"], loc["airports"], loc["languages"]
@@ -445,7 +464,7 @@ def build_user(
     gender = choose_gender()
     name   = build_name(country, gender, LOCATION_DATA, COUNTRY_CULTURE, SWISS_LANG_TO_CULT, NAMES)
 
-    email  = email_from_name(name)
+    email  = email_from_name(name, used_emails)
     handle = "rm_" + _strip_accents(name).lower().replace(" ", ".").replace("-", ".")
 
     # Ages broader (19–62) so more pairings pass companion age bands
@@ -457,8 +476,7 @@ def build_user(
     # Interests: 6–10 to give LLM more hooks
     interests = random.sample(INTERESTS, k=random.randint(6, 10))
 
-    # Mandatory IDs (your downstream expects user_id at top level)
-    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    # Email is now the primary key (no user_id needed)
 
     firstName, middleName, lastName = split_name(name)
     password = "Pass@" + str(random.randint(100000, 999999))
@@ -484,7 +502,6 @@ def build_user(
     currency = CURRENCY_BY_COUNTRY.get(country, "EUR")
 
     profile = {
-        "user_id": user_id,
         **signup_block,
 
         "name": name,
@@ -647,13 +664,15 @@ def main():
     
 
     users = []
+    used_emails = set()  # Track used emails for uniqueness
+    
     for _ in range(N_USERS):
         p = build_user(
             LOCATION_DATA, CURRENCY_BY_COUNTRY,
             GENDERS, VALUES, INTERESTS, DIET, ALCOHOL, SMOKING,
             ACCOM_TYPES, TRANSPORT, PROMPTS, OPENING_MOVE_TEMPLATES,
             COMPANION_TYPES, COMPANION_GENDER_PREF,
-            COUNTRY_CULTURE, SWISS_LANG_TO_CULT, NAMES
+            COUNTRY_CULTURE, SWISS_LANG_TO_CULT, NAMES, used_emails
         )
         if random.random() < LEAN_RATIO:
             p = degrade_profile_randomly(p)
@@ -664,6 +683,7 @@ def main():
         json.dump(users, f, indent=2, ensure_ascii=False)
 
     print(f"✅ Generated {len(users)} users → {OUT_PATH}")
+    print(f"✅ All {len(used_emails)} emails are unique")
     print(json.dumps(users[0], indent=2, ensure_ascii=False)[:1200] + "\n...")
 
 if __name__ == "__main__":
