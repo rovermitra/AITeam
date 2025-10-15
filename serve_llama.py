@@ -40,6 +40,8 @@ _TOKENIZER = None
 _MODEL = None
 _DEVICE = "cpu"
 _MODEL_NAME = "unloaded"
+_MODEL_LOADING = False
+_MODEL_LOADED = False
 
 def _try_import_bnb():
     try:
@@ -50,9 +52,11 @@ def _try_import_bnb():
 
 def load_model_once():
     """Load finetuned model if available; otherwise base. 4-bit on CUDA if bitsandbytes exists."""
-    global _TOKENIZER, _MODEL, _DEVICE, _MODEL_NAME
-    if _MODEL is not None:
+    global _TOKENIZER, _MODEL, _DEVICE, _MODEL_NAME, _MODEL_LOADING, _MODEL_LOADED
+    if _MODEL is not None or _MODEL_LOADING:
         return
+    
+    _MODEL_LOADING = True
 
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -90,6 +94,10 @@ def load_model_once():
 
     if _DEVICE == "cpu":
         _MODEL = _MODEL.to("cpu")
+    
+    _MODEL_LOADED = True
+    _MODEL_LOADING = False
+    print(f"✅ Model loaded successfully: {_MODEL_NAME}")
 
 # ───── FastAPI app ─────
 app = FastAPI(title="RoverMitra Llama Server", version="1.0.0")
@@ -102,16 +110,30 @@ class RankReq(BaseModel):
 
 @app.on_event("startup")
 def _startup():
-    load_model_once()
+    import threading
+    # Load model in background thread to not block startup
+    threading.Thread(target=load_model_once, daemon=True).start()
 
 @app.get("/health")
 def health():
-    return {"ok": True, "device": _DEVICE, "model": _MODEL_NAME}
+    global _MODEL_LOADED, _MODEL_LOADING
+    if _MODEL_LOADED:
+        return {"ok": True, "device": _DEVICE, "model": _MODEL_NAME, "status": "ready"}
+    elif _MODEL_LOADING:
+        return {"ok": True, "device": _DEVICE, "model": "loading", "status": "loading"}
+    else:
+        return {"ok": True, "device": _DEVICE, "model": "unloaded", "status": "starting"}
 
 @app.post("/rank")
 def rank(req: RankReq = Body(...)):
+    global _MODEL_LOADED, _MODEL_LOADING
+    if not _MODEL_LOADED:
+        if _MODEL_LOADING:
+            return {"error": "Model is still loading, please wait"}
+        else:
+            return {"error": "Model not loaded"}
+    
     import torch
-    load_model_once()
     tok, mdl = _TOKENIZER, _MODEL
 
     inputs = tok(req.prompt, return_tensors="pt", truncation=True, max_length=4096)
