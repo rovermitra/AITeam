@@ -110,9 +110,15 @@ class RankReq(BaseModel):
 
 @app.on_event("startup")
 def _startup():
+    print("🚀 Server startup initiated")
     import threading
     # Load model in background thread to not block startup
     threading.Thread(target=load_model_once, daemon=True).start()
+    print("🚀 Model loading started in background thread")
+
+@app.get("/")
+def root():
+    return {"message": "RoverMitra Llama Server is running", "status": "ok"}
 
 @app.get("/health")
 def health():
@@ -176,11 +182,13 @@ def _first_free_port(
 
 if __name__ == "__main__":
     import uvicorn
-    host = os.getenv("RM_LLAMA_HOST", "0.0.0.0")
-    start = int(os.getenv("RM_LLAMA_PORT_START", "8000"))
-    end   = int(os.getenv("RM_LLAMA_PORT_END", "8010"))
-    port  = _first_free_port(host, start, end)
-
-    print(f"[serve_llama] Using host={host} port={port} (searched {start}..{end})")
+    
+    # Railway provides PORT environment variable
+    port = int(os.getenv("PORT", "8000"))
+    host = os.getenv("HOST", "0.0.0.0")
+    
+    print(f"[serve_llama] Starting server on {host}:{port}")
+    print(f"[serve_llama] Environment: PORT={port}, HOST={host}")
+    
     # one worker so the model stays in a single process (keeps memory hot)
     uvicorn.run("serve_llama:app", host=host, port=port, workers=1)
