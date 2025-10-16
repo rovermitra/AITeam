@@ -46,7 +46,7 @@ def parse_args():
                    help="Register endpoint path")
     p.add_argument("--login-endpoint", default=os.getenv("RM_LOGIN_EP", "/User/login"),
                    help="Login endpoint path")
-    p.add_argument("--prefs-endpoint", default=os.getenv("RM_PREFS_EP", "/Preferences"),
+    p.add_argument("--prefs-endpoint", default=os.getenv("RM_PREFS_EP", "/User/preferences"),
                    help="Preferences endpoint path")
     p.add_argument("--verify-ssl", default=os.getenv("RM_VERIFY_SSL", "false"),
                    choices=["true", "false"], help="Verify TLS certs? (default: false for localhost)")
@@ -234,7 +234,8 @@ def main():
                 logging.error(f"[{i}] Failed to extract token for {email}. Login response: {str(login_json)[:300]}")
                 continue
 
-            # 3) Preferences with full user JSON            pr = post_preferences(session, args.base_url, args.prefs_endpoint, token, user, dry=args.dry_run)
+            # 3) Preferences with full user JSON
+            pr = post_preferences(session, args.base_url, args.prefs_endpoint, token, user, dry=args.dry_run)
             psc = getattr(pr, "status_code", 0)
             if psc in (200, 201):
                 logging.info(f"[{i}] Preferences OK for {email} (status {psc})")

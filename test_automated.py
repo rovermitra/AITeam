@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
 """
-Automated test script for RoverMitra pipeline (strict Llama ranking)
+Automated test script for RoverMitra pipeline (Railway Data + Local Models)
 
-- Asks which module to test (e.g., "main" or "main_fast").
-- Loads candidate pool, runs hard prefilter, AI prefilter, then ALWAYS uses Llama (llm_rank).
-- Prints compact results and basic timings.
+- Tests the complete pipeline with Railway Postgres + Local Models
+- Loads candidate pool, runs hard prefilter, AI prefilter, then uses Local Llama (llm_rank)
+- Tests 4 diverse user profiles with different characteristics
+- Shows explanations directly from main.py (no adjective conversion)
 
 Speed notes:
 - Keeps AI prefilter relatively small for faster runs: percent=0.02, min_k=20
-- Optionally caps pool via POOL_CAP (default 3000) to keep tests snappy.
+- Optionally caps pool via POOL_CAP (default 5000) to keep tests snappy.
 
 Run:
-  python test_automated_llama.py
+  python test_automated.py
 """
 
 import os
@@ -24,13 +25,13 @@ from pathlib import Path
 # -----------------------------
 # Config knobs for test speed
 # -----------------------------
-POOL_CAP = int(os.getenv("RM_TEST_POOL_CAP", "3000"))  # cap candidate pool for faster tests
-PREFILTER_PERCENT = float(os.getenv("RM_TEST_PREFILTER_PERCENT", "0.02"))
+POOL_CAP = int(os.getenv("RM_TEST_POOL_CAP", "5000"))  # cap candidate pool for faster tests
+PREFILTER_PERCENT = float(os.getenv("RM_TEST_PREFILTER_PERCENT", "0.2"))
 PREFILTER_MIN_K = int(os.getenv("RM_TEST_PREFILTER_MIN_K", "20"))
-TOP_K = int(os.getenv("RM_TEST_TOP_K", "5"))
+TOP_K = int(os.getenv("RM_TEST_TOP_K", "4"))
 
 def choose_module_name() -> str:
-    print("🔧 Testing main module...")
+    print("🔧 Testing main module (Railway Postgres + Local Models)...")
     return "main"
 
 def import_pipeline_module(mod_name: str):
@@ -40,7 +41,7 @@ def import_pipeline_module(mod_name: str):
         print(f"❌ Could not import module '{mod_name}': {e}")
         sys.exit(1)
 
-    required = ["load_pool", "hard_prefilter", "ai_prefilter", "llm_rank", "append_to_json", "LOCAL_DB_PATH"]
+    required = ["load_pool", "hard_prefilter", "ai_prefilter", "llm_rank", "append_to_json", "BASE_DIR"]
     missing = [name for name in required if not hasattr(mod, name)]
     if missing:
         print(f"❌ Module '{mod_name}' is missing required attributes: {', '.join(missing)}")
@@ -49,7 +50,7 @@ def import_pipeline_module(mod_name: str):
     return mod
 
 def demo_test_users():
-    """Four varied profiles to showcase different travel personalities and authentic adjectives."""
+    """Four diverse profiles showcasing different travel personalities, ages, budgets, and cultural backgrounds."""
     return [
         {
             'email': 'test_user_1@rovermitra.example',
@@ -124,7 +125,7 @@ def demo_test_users():
             'faith': {
                 'consider_in_matching': True,
                 'religion': 'Islam',
-                'policy': 'same_only',
+                'policy': 'prefer_same',
                 'visibility': 'private'
             },
             'privacy': {'share_home_city': False}
@@ -158,12 +159,20 @@ def demo_test_users():
     ]
 
 def run_core_tests(mod):
-    print("🧪 Testing RoverMitra core functionality with faith preferences (strict Llama)…")
+    print("🧪 Testing RoverMitra core functionality with Railway Postgres + Local Models…")
 
-    # Show basic env hints (helps diagnose CPU/GPU issues quickly)
-    print(f"⚙️  CUDA_VISIBLE_DEVICES = {os.environ.get('CUDA_VISIBLE_DEVICES', '<unset>')}")
-    print(f"⚙️  TRANSFORMERS_CACHE   = {os.environ.get('TRANSFORMERS_CACHE', '<unset>')}")
-    print(f"⚙️  HF_HOME              = {os.environ.get('HF_HOME', '<unset>')}")
+    # Show basic env hints (helps diagnose issues quickly)
+    print(f"⚙️  RAILWAY_API_URL      = {os.environ.get('RAILWAY_API_URL', '<unset>')}")
+    print(f"⚙️  RAILWAY_DB_URL       = {os.environ.get('RAILWAY_DB_URL', '<unset>')}")
+    print(f"⚙️  Local Models: BGE-M3, Llama Fine-tuned, Llama Base")
+
+    # Check local model availability
+    print("\n🔥 Checking local model availability...")
+    print(f"✅ BGE Model Path: {mod.BGE_M3_PATH}")
+    print(f"✅ Llama Fine-tuned Path: {mod.LLAMA_FINETUNED_PATH}")
+    print(f"✅ Llama Base Path: {mod.LLAMA_BASE_PATH}")
+    print(f"✅ BGE Cache Path: {mod.UIDS_PATH}")
+    print("✅ Local models ready!")
 
     # 1) Load pool
     t0 = time.time()
@@ -172,7 +181,7 @@ def run_core_tests(mod):
     print(f"\n1️⃣ Candidate pool loaded: {len(pool)} users (in {t1 - t0:.2f}s)")
 
     if not pool:
-        print("❌ No candidates found. Please check users/data/users_core.json and MatchMaker/data/matchmaker_profiles.json")
+        print("❌ No candidates found. Please check Railway Postgres connection and data.")
         return False
 
     # (Optional) cap pool for faster testing
@@ -183,7 +192,7 @@ def run_core_tests(mod):
     # 2) Test with 4 demo users (including faith preferences)
     users = demo_test_users()
     print(f"\n2️⃣ Running tests for {len(users)} demo users (AI prefilter {int(PREFILTER_PERCENT*100)}% / min_k={PREFILTER_MIN_K}, TOP_K={TOP_K})")
-    print("   Testing: gender preferences, faith preferences (open/prefer_same/same_only)")
+    print("   Testing: Railway Postgres + Local Models integration, gender preferences, faith preferences")
 
     for idx, q in enumerate(users, 1):
         print(f"\n--- User {idx}: {q['name']} ---")
@@ -206,7 +215,7 @@ def run_core_tests(mod):
             print("⚠️  No candidates passed AI prefilter; skipping this user.")
             continue
 
-        # Llama ranking (STRICT: always call llm_rank)
+        # Local Llama ranking (STRICT: always call llm_rank)
         t0 = time.time()
         try:
             final = mod.llm_rank(q, ai, out_top=TOP_K)
@@ -214,9 +223,9 @@ def run_core_tests(mod):
             print(f"❌ llm_rank raised an exception: {e}")
             return False
         t1 = time.time()
-        print(f"✅ Llama ranking produced {len(final)} matches (in {t1 - t0:.2f}s)")
+        print(f"✅ Local Llama ranking produced {len(final)} matches (in {t1 - t0:.2f}s)")
 
-        # Show matches with new format
+        # Show matches with explanation from main.py
         print("— Top Recommendations —")
         for j, m in enumerate(final, 1):
             score = m.get("compatibility_score", 0.0)
@@ -225,12 +234,11 @@ def run_core_tests(mod):
             except Exception:
                 pct = 0
             
-            # Extract 4 key adjectives from explanation
+            # Use explanation directly from main.py
             explanation = m.get("explanation", "")
-            adjectives = mod.extract_key_adjectives(explanation)
             
             print(f"{j}. {m.get('name','?')} - {pct}%")
-            print(f"   {adjectives}")
+            print(f"   {explanation}")
         
         # Show faith-specific info for faith-conscious users
         if q.get('faith', {}).get('consider_in_matching'):
@@ -241,9 +249,10 @@ def run_core_tests(mod):
     # 3) Append-to-JSON smoke test
     try:
         save_user = users[0].copy()
-        save_user["email"] = "test_save_user_llama@rovermitra.example"
-        mod.append_to_json(save_user, mod.LOCAL_DB_PATH)
-        print(f"\n✅ JSON append OK → {mod.LOCAL_DB_PATH}")
+        save_user["email"] = "test_save_user_local@rovermitra.example"
+        local_db_path = mod.BASE_DIR / "data/travel_ready_user_profiles.json"
+        mod.append_to_json(save_user, local_db_path)
+        print(f"\n✅ JSON append OK → {local_db_path}")
     except Exception as e:
         print(f"\n❌ JSON append failed: {e}")
         return False
@@ -299,7 +308,7 @@ def run_perf_tests(mod):
         t0 = time.time()
         final = mod.llm_rank(q, ai, out_top=TOP_K)
         t1 = time.time()
-        print(f"LLM : {t1 - t0:.2f}s ({len(final)} returned)")
+        print(f"Local: {t1 - t0:.2f}s ({len(final)} returned)")
 
         total = (t1 - (t0 - (t1 - t0)))
         # (Not a perfect total; just a quick peek.)
@@ -309,8 +318,8 @@ def run_perf_tests(mod):
         print(f"❌ Performance snapshot failed: {e}")
 
 def main():
-    print("🚀 RoverMitra Automated Test Suite (Strict Llama)")
-    print("=" * 60)
+    print("🚀 RoverMitra Automated Test Suite (Railway Postgres + Local Models)")
+    print("=" * 70)
 
     mod_name = choose_module_name()
     mod = import_pipeline_module(mod_name)
@@ -320,7 +329,7 @@ def main():
         run_perf_tests(mod)
         print("\n" + "=" * 60)
         print("✅ All automated tests finished.")
-        print("ℹ️  Final ranking used: Llama (llm_rank)")
+        print("ℹ️  Final ranking used: Local Llama (llm_rank) with Railway Postgres")
     else:
         print("\n" + "=" * 60)
         print("❌ Some tests failed. See logs above.")

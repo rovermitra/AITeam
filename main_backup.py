@@ -1,27 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-RoverMitra Matchmaker – Railway Data + Local Models Only (UI chips: interests/values)
+RoverMitra Matchmaker – fast path (cached BGE + 4-bit Llama)
 
 Pipeline:
-  Railway Postgres -> Hard Prefilters -> AI Prefilter (Local BGE-M3 + cached embeddings) -> Final Ranking (Local Llama-4bit)
+  Hard Prefilters  ->  AI Prefilter (BGE-M3 embeddings; cached)  ->  Final Ranking (Llama-4bit)
 
-Data Source:
-  Fetches data from Railway Postgres database
-  Falls back to local JSON files if Railway unavailable
-
-Models (Local Only):
-  Uses local BGE-M3 at models/bge-m3 for embeddings
-  Uses cached embeddings from models_cache/bge_user_emails.npy and models_cache/bge_embeds_fp16.npy
-  Uses local fine-tuned Llama at models/llama-travel-matcher (4-bit on GPU)
-  If fine-tuned fails, try base models/llama-3.2-3b-instruct (4-bit on GPU)
-  If both fail, fall back to heuristic scorer
+Final Ranking:
+  Try local fine-tuned Llama at models/llama-travel-matcher (4-bit on GPU).
+  If it fails, try base models/llama-3.2-3b-instruct (4-bit on GPU).
+  If both fail, fall back to heuristic scorer.
 
 First run once:  python build_bge_cache.py
 Then run this script normally.
 
-Requires: bitsandbytes, sentence-transformers, transformers, torch (CUDA),
-          psycopg2, requests, python-dotenv
+Requires: bitsandbytes (for 4-bit), sentence-transformers, transformers, torch (CUDA)
 """
 
 from __future__ import annotations
@@ -33,7 +26,9 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# ---------------------------------------------------------------------
 # Suppress unimportant warnings
+# ---------------------------------------------------------------------
 import warnings
 warnings.filterwarnings("ignore", category=FutureWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -43,14 +38,16 @@ warnings.filterwarnings("ignore", message=".*do_sample.*")
 warnings.filterwarnings("ignore", message=".*temperature.*")
 warnings.filterwarnings("ignore", message=".*top_p.*")
 
-# Transformer warning control
+# Suppress specific transformers warnings
 os.environ["TOKENIZERS_PARALLELISM"] = os.getenv("TOKENIZERS_PARALLELISM", "false")
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = os.getenv("PYTORCH_CUDA_ALLOC_CONF", "max_split_size_mb:512")
 
-# Base dir
+# ---------------------------------------------------------------------
+# Environment (set before any ML import)
+# ---------------------------------------------------------------------
 BASE_DIR = Path(__file__).resolve().parent
 
-# Environment defaults
+# Environment variables from .env file
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", os.getenv("CUDA_VISIBLE_DEVICES", "0"))
 os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", os.getenv("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1"))
 os.environ.setdefault("HF_HOME", os.getenv("HF_HOME", str(BASE_DIR / "models_cache")))
@@ -58,36 +55,45 @@ os.environ.setdefault("TRANSFORMERS_CACHE", os.getenv("TRANSFORMERS_CACHE", str(
 os.environ.setdefault("TORCH_HOME", os.getenv("TORCH_HOME", str(BASE_DIR / "models_cache" / "torch")))
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", os.getenv("HF_HUB_ENABLE_HF_TRANSFER", "0"))
 
+# Hugging Face token
 HF_TOKEN = os.getenv("HF_TOKEN")
 if HF_TOKEN:
     os.environ["HF_TOKEN"] = HF_TOKEN
 
-# psutil guard
+# --- psutil guard (prevents circular-import crash if system psutil is broken) ---
 try:
     import psutil  # noqa
 except Exception:
-    import types
+    import types, sys
     dummy = types.SimpleNamespace(
         virtual_memory=lambda: types.SimpleNamespace(total=0),
         cpu_count=lambda: 1,
         Process=lambda *a, **k: types.SimpleNamespace(memory_info=lambda: types.SimpleNamespace(rss=0))
     )
     sys.modules['psutil'] = dummy
+# -------------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------
 # Project paths
-USERS_CORE_PATH  = BASE_DIR / "users" / "data" / "users_core.json"
-MM_PATH          = BASE_DIR / "MatchMaker" / "data" / "matchmaker_profiles.json"
-LOCAL_DB_PATH    = BASE_DIR / "data" / "travel_ready_user_profiles.json"
+# ---------------------------------------------------------------------
+USERS_CORE_PATH  = BASE_DIR / "users/data/users_core.json"
+MM_PATH          = BASE_DIR / "MatchMaker/data/matchmaker_profiles.json"
+LOCAL_DB_PATH    = BASE_DIR / "data/travel_ready_user_profiles.json"  # append new users here
 
-# Model paths - local
-BGE_M3_PATH          = BASE_DIR / "models" / "bge-m3"
-LLAMA_FINETUNED_PATH = BASE_DIR / "models" / "llama-travel-matcher"
-LLAMA_BASE_PATH      = BASE_DIR / "models" / "llama-3.2-3b-instruct"
-CACHE_DIR            = BASE_DIR / "models_cache"
-UIDS_PATH            = CACHE_DIR / "bge_user_emails.npy"
-EMB_PATH             = CACHE_DIR / "bge_embeds_fp16.npy"
+# Model paths from environment variables (Hugging Face Hub)
+BGE_M3_PATH              = os.getenv("BGE_M3_MODEL_PATH", "abdulghaffaransari9/rovermitra-bge-m3")
+LLAMA_FINETUNED_PATH     = os.getenv("LLAMA_FINETUNED_MODEL_PATH", "abdulghaffaransari9/rovermitra-travel-matcher")
+LLAMA_BASE_PATH          = os.getenv("LLAMA_BASE_MODEL_PATH", "abdulghaffaransari9/rovermitra-llama-base")
+BGE_CACHE_PATH           = os.getenv("BGE_CACHE_MODEL_PATH", "abdulghaffaransari9/rovermitra-bge-cache")
 
-# ML imports
+# Embedding cache
+CACHE_DIR = BASE_DIR / "models_cache"
+UIDS_PATH = CACHE_DIR / "bge_user_emails.npy"
+EMB_PATH  = CACHE_DIR / "bge_embeds_fp16.npy"
+
+# ---------------------------------------------------------------------
+# Imports (after env)
+# ---------------------------------------------------------------------
 try:
     import numpy as np
     import torch
@@ -98,7 +104,9 @@ except Exception as e:
     print(f"[warn] ML stack import failed: {e}", file=sys.stderr)
     _ML_OK = False
 
-# Utilities
+# ---------------------------------------------------------------------
+# Utils
+# ---------------------------------------------------------------------
 def load_json(path: Path) -> list:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
 
@@ -131,7 +139,9 @@ def jaccard(a: List[str], b: List[str]) -> float:
 def tokenize(text: str) -> set:
     return set(re.findall(r"[A-Za-zÀ-ÿ0-9']+", text.lower()))
 
+# ---------------------------------------------------------------------
 # Vocab aids
+# ---------------------------------------------------------------------
 LANG_ALIASES = {
     "english":"en","en":"en","german":"de","deutsch":"de","de":"de","french":"fr","français":"fr","francais":"fr","fr":"fr",
     "italian":"it","italiano":"it","it":"it","spanish":"es","español":"es","es":"es","portuguese":"pt","português":"pt","pt":"pt",
@@ -145,12 +155,17 @@ LANG_ALIASES = {
 }
 DIETS = {"none","vegetarian","vegan","halal","kosher","gluten-free","no pork","lactose-free","pescatarian"}
 
-FAITH_LABELS = ["Islam","Hindu","Christian","Jewish","Buddhist","Sikh","Other","Prefer not to say"]
+# --- Faith constants -------------------------------------------------------------
+FAITH_LABELS = [
+    "Islam","Hindu","Christian","Jewish","Buddhist","Sikh","Other","Prefer not to say"
+]
 
 def _faith_slug(s: str) -> str:
     return (s or "").strip().lower().replace(" ", "_")
 
-# CLI helpers
+# ---------------------------------------------------------------------
+# CLI helpers (interactive profile builder)
+# ---------------------------------------------------------------------
 def _show_choices(choices: List[str]) -> str:
     return " / ".join(f"{i+1}:{c}" for i, c in enumerate(choices))
 
@@ -216,18 +231,21 @@ def ask_multi(prompt: str, choices: List[str], min_k:int=1, max_k:int=3, default
 def clean_list_csv(s: str) -> List[str]:
     return [x.strip() for x in (s or "").split(",") if x.strip()]
 
+# ---------------------------------------------------------------------
 # Interactive profile builder
+# ---------------------------------------------------------------------
 def interactive_new_user() -> Dict[str, Any]:
-    print("\nWelcome. Quick onboarding.\n")
+    print("\n🌍  Welcome! Let’s make trips easy to say yes to.\n(Quick taps, tiny questions, zero boredom.)\n")
 
-    print("Basics")
-    name = ask("Your name", "Alex Rivera")
+    print("— Basics —")
+    name = ask("Your name (e.g., 'Aisha Khan' or 'Tom Müller')", "Alex Rivera")
     age  = ask_int("Age", 27)
     gender = ask_choice("How do you identify?", ["Male","Female","Non-binary","Other"], "Other")
-    city = ask("Home city", "Berlin")
-    country = ask("Country", "Germany")
+    city = ask("Home city (e.g., Berlin)", "Berlin")
+    country = ask("Country (e.g., Germany)", "Germany")
 
-    print("\nLanguages")
+    print("\n— Languages —")
+    print("Tip: use names or codes (e.g., english/en, deutsch/de).")
     langs_in = clean_list_csv(ask("Languages you can chat in (comma)", "en, de"))
     langs = []
     for w in langs_in:
@@ -235,76 +253,95 @@ def interactive_new_user() -> Dict[str, Any]:
         langs.append(LANG_ALIASES.get(key, key))
     langs = sorted(set([x for x in langs if x]))
 
-    print("\nInterests")
-    INTERESTS = [
+    print("\n— Pick your vibe —")
+    INTEREST_CHIPS = [
         "museum hopping","architecture walks","history sites","city photography","food tours","street food",
         "coffee crawls","vineyards","scenic trains","short hikes","long hikes","mountain hiking","lake swims",
         "beach days","markets","old towns","rooftop views","local crafts","live music","festivals"
     ]
-    interests = ask_multi("What sounds fun right now?", INTERESTS, 3, 6, default_idxs=[0,1,3])
+    interests = ask_multi("What sounds fun right now?", INTEREST_CHIPS, 3, 6, default_idxs=[0,1,3])
 
-    print("\nTempo")
+    print("\n— Tempo —")
     pace = ask_choice("Trip pace", ["relaxed","balanced","packed"], "balanced")
-    chronotype = ask_choice("Most alive", ["early bird","flexible","night owl"], "flexible")
+    chronotype = ask_choice("You’re most alive…", ["early bird","flexible","night owl"], "flexible")
 
-    print("\nBudget")
+    print("\n— Money stuff (kept private) —")
     budget = ask_int("Comfortable budget per day (€)", 150)
-    split_rule = ask_choice("Split shared costs", ["each_own","50/50","custom"], "each_own")
+    split_rule = ask_choice("Fair way to split shared costs?", ["each_own","50/50","custom"], "each_own")
 
-    print("\nFood")
+    print("\n— Food —")
     diet = ask_choice("Diet", sorted(list(DIETS)), "none")
-    allergies_raw = clean_list_csv(ask("Allergies? or 'none'", "none"))
+    allergies_raw = clean_list_csv(ask("Allergies? (comma, e.g., nuts, gluten) or 'none'", "none"))
     allergies = ["none"] if (not allergies_raw or allergies_raw == ["none"]) else allergies_raw
 
-    print("\nComfort")
+    print("\n— Comfort —")
     smoking = ask_choice("Smoking", ["never","occasionally","regular"], "never")
     alcohol = ask_choice("Alcohol", ["none","moderate","social"], "moderate")
-    noise = ask_choice("Noise tolerance", ["low","medium","high"], "medium")
+    noise = ask_choice("Noise tolerance for stays", ["low","medium","high"], "medium")
     clean = ask_choice("Cleanliness preference", ["low","medium","high"], "medium")
-    risk  = ask_choice("Risk tolerance", ["low","medium","high"], "medium")
+    risk  = ask_choice("Risk tolerance for activities", ["low","medium","high"], "medium")
 
-    print("\nWork")
+    print("\n— Work bits —")
     remote_ok = ask_yesno("Need time to work while traveling?")
-    hours_online = ask_choice("Hours online per day", ["0","1","2"], "0")
+    hours_online = ask_choice("Hours you must be online per day", ["0","1","2"], "0")
     wifi_need = ask_choice("Wi-Fi needs", ["normal","good","excellent"], "good")
 
-    print("\nStay must-haves")
+    print("\n— Stay must-haves —")
     MUSTS = ["wifi","private_bath","kitchen","workspace","near_station","quiet_room","breakfast"]
     must_haves = ask_multi("Pick 1–4 must-haves", MUSTS, 1, 4, default_idxs=[0,3])
 
-    print("\nRoom and transport")
-    room_setup = ask_choice("Room setup when sharing", ["twin","double","2 rooms","dorm"], "twin")
+    print("\n— Room & transport —")
+    room_setup = ask_choice("Room setup you prefer when sharing", ["twin","double","2 rooms","dorm"], "twin")
     TRANSPORT = ["train","plane","bus","car"]
     transport_allowed = ask_multi("Allowed transport modes", TRANSPORT, 1, 3, default_idxs=[0,1])
 
-    print("\nTrip styles")
+    print("\n— Trip styles —")
     STYLES = ["weekend getaway","co-work week","hiking basecamp","city sampler","island hop","festival trip","road trip"]
     trip_styles = ask_multi("Pick a couple", STYLES, 1, 3, default_idxs=[0,3])
 
-    print("\nValues")
+    print("\n— Values —")
     VALUES = ["adventure","stability","learning","family","budget-minded","luxury-taste","nature","culture","community","fitness","spirituality"]
     values = ask_multi("Choose 2–3", VALUES, 2, 3, default_idxs=[0,6])
 
-    print("\nCompanions")
-    companion_pref = ask_choice("Who to travel with?", ["I'm open to travel with anyone", "Men", "Women", "Nonbinary travelers"], "I'm open to travel with anyone")
+    print("\n— Travel companions —")
+    companion_pref = ask_choice("Who would you like to travel with?",
+                               ["I'm open to travel with anyone", "Men", "Women", "Nonbinary travelers"],
+                               "I'm open to travel with anyone")
 
-    print("\nSafety")
+    print("\n— Safety —")
     share_home_city = ask_yesno("OK to show your home city on profile?", True)
     pre_meet_video  = ask_yesno("Comfortable with a short pre-trip video call?", True)
 
-    print("\nOptional faith")
-    consider_faith = ask_yesno("Consider faith when matching? Optional and private", False)
-    faith_block = {"consider_in_matching": False, "religion": "", "policy": "open", "visibility": "private"}
+    print("\n— Optional: faith (totally private) —")
+    print("Some travelers prefer matching with someone who shares their faith. This is 100% optional and always private.")
+    consider_faith = ask_yesno("Would you like us to consider faith when matching? (Totally okay to say no.)", False)
+
+    faith_block = {
+        "consider_in_matching": False,
+        "religion": "",
+        "policy": "open",       # "open" | "prefer_same" | "same_only"
+        "visibility": "private"
+    }
+
     if consider_faith:
         faith_block["consider_in_matching"] = True
-        faith_block["policy"] = ask_choice("How to consider it?", ["open", "prefer_same", "same_only"], "prefer_same")
-        faith_pick = ask_choice("If comfortable, which faith?", FAITH_LABELS, "Prefer not to say")
+        faith_block["policy"] = ask_choice(
+            "How should we consider it? (open / prefer_same / same_only)",
+            ["open", "prefer_same", "same_only"],
+            "prefer_same"
+        )
+        faith_pick = ask_choice(
+            "If you're comfortable, what's your faith?",
+            FAITH_LABELS,
+            "Prefer not to say"
+        )
         faith_block["religion"] = "" if faith_pick == "Prefer not to say" else faith_pick
 
-    bio = ask("One-liner about you", "")
+    print("\n— Last bit —")
+    bio = ask("Write a one-liner about you (e.g., 'Berlin-based planner who loves scenic trains + espresso.')", "")
 
     user = {
-        "email": f"local_{uuid.uuid4().hex[:8]}@example.com",
+        "id": f"u_local_{uuid.uuid4().hex[:8]}",
         "name": name,
         "age": age,
         "gender": gender,
@@ -313,6 +350,7 @@ def interactive_new_user() -> Dict[str, Any]:
         "interests": interests,
         "values": values,
         "bio": bio,
+
         "travel_prefs": {
             "pace": pace,
             "accommodation_types": ["hotel","apartment"],
@@ -320,8 +358,11 @@ def interactive_new_user() -> Dict[str, Any]:
             "transport_allowed": transport_allowed,
             "must_haves": must_haves
         },
+
         "budget": {"type":"per_day","amount": budget, "currency": "EUR", "split_rule": split_rule},
+
         "diet_health": {"diet": diet, "allergies": allergies if allergies else ["none"], "accessibility": "none"},
+
         "comfort": {
             "risk_tolerance": risk,
             "noise_tolerance": noise,
@@ -330,224 +371,44 @@ def interactive_new_user() -> Dict[str, Any]:
             "alcohol": alcohol,
             "smoking": smoking
         },
+
         "work": {
             "remote_work_ok": remote_ok,
             "hours_online_needed": int(hours_online),
             "wifi_quality_needed": wifi_need
         },
-        "companion_preferences": {"genders_ok": [companion_pref]},
+
+        "companion_preferences": {
+            "genders_ok": [companion_pref]
+        },
+
         "faith": faith_block,
+
         "privacy": {
             "share_profile_with_matches": True,
             "share_home_city": share_home_city,
             "pre_meet_video_call_ok": pre_meet_video
         }
     }
-    print("\nProfile captured.\n")
+    print("\n✅ Thanks! Building your matches…\n")
     return user
 
-# Data load from Railway or local
+# ---------------------------------------------------------------------
+# Candidate pool and summarization
+# ---------------------------------------------------------------------
 def load_pool():
-    try:
-        import psycopg2
-        from datetime import datetime
-
-        DATABASE_URL = os.getenv("DATABASE_URL") or "postgresql://postgres:RzBikKnKvwEeEUMDmGYFskiVJStCeOOH@hopper.proxy.rlwy.net:11809/railway"
-        print("Connecting to Railway Postgres...")
-        conn = psycopg2.connect(DATABASE_URL)
-        cursor = conn.cursor()
-
-        cursor.execute("""
-            SELECT "Id", "Email", "FirstName", "LastName", "MiddleName", 
-                   "DateOfBirth", "Address", "City", "State", "PostalCode", 
-                   "Country", "CreatedAt", "UpdatedAt", "IsActive", 
-                   "IsEmailVerified", "IsPhoneVerified", "ProfilePictureUrl",
-                   "UserName", "PhoneNumber", "IsProfileComplete", 
-                   "IsIdVerified", "IdVerifiedAt", "Gender"
-            FROM "Users"
-        """)
-        columns = [desc[0] for desc in cursor.description]
-        user_rows = cursor.fetchall()
-
-        def as_dict(row):
-            out = {}
-            for i, v in enumerate(row):
-                if hasattr(v, "isoformat"):
-                    out[columns[i]] = v.isoformat()
-                else:
-                    out[columns[i]] = v
-            return out
-
-        users_raw = [as_dict(r) for r in user_rows]
-
-        cursor.execute("""
-            SELECT id, match_profile_id, email, status, created_at, updated_at,
-                   visibility, preferences, compatibility_scores, raw_data
-            FROM matchmaker_profiles
-        """)
-        mm_columns = [desc[0] for desc in cursor.description]
-        mm_rows = cursor.fetchall()
-
-        def as_mm_dict(row):
-            d = {}
-            for i, v in enumerate(row):
-                col = mm_columns[i]
-                if col in ["visibility","preferences","compatibility_scores","raw_data"]:
-                    if v:
-                        try:
-                            d[col] = json.loads(v) if isinstance(v, str) else v
-                        except json.JSONDecodeError:
-                            d[col] = str(v)
-                    else:
-                        d[col] = None
-                elif hasattr(v, "isoformat"):
-                    d[col] = v.isoformat()
-                else:
-                    d[col] = v
-            return d
-
-        mm_profiles = [as_mm_dict(r) for r in mm_rows]
-
-        cursor.close()
-        conn.close()
-
-        pool = []
-        mm_by_email = index_by(mm_profiles, "email")
-        for ur in users_raw:
-            email = ur.get("Email", "")
-            if not email:
-                continue
-            mm = mm_by_email.get(email)
-            # Extract rich data from Railway matchmaker profile
-            raw_data = mm.get("raw_data", {}) if mm else {}
-            user_profile = raw_data.get("user_profile", {})
-            matchmaker_prefs = raw_data.get("matchmaker_preferences", {})
-            
-            # Extract languages from Railway data
-            languages = matchmaker_prefs.get("language_policy", {}).get("preferred_chat_languages", ["en"])
-            
-            # Extract interests and values from Railway data
-            interests = user_profile.get("interests", [])
-            values = user_profile.get("values", [])
-            
-            # Extract budget information
-            budget_amount = user_profile.get("budget", {}).get("amount", 100)
-            budget_currency = user_profile.get("budget", {}).get("currency", "EUR")
-            
-            # Extract travel preferences
-            pace = user_profile.get("travel_prefs", {}).get("pace", "balanced")
-            chronotype = user_profile.get("comfort", {}).get("chronotype", "flexible")
-            
-            # Extract diet and health preferences
-            diet = user_profile.get("diet_health", {}).get("diet", "none")
-            allergies = user_profile.get("diet_health", {}).get("allergies", ["none"])
-            
-            # Extract comfort preferences
-            smoking = user_profile.get("comfort", {}).get("smoking", "never")
-            alcohol = user_profile.get("comfort", {}).get("alcohol", "moderate")
-            risk_tolerance = user_profile.get("comfort", {}).get("risk_tolerance", "medium")
-            noise_tolerance = user_profile.get("comfort", {}).get("noise_tolerance", "medium")
-            cleanliness = user_profile.get("comfort", {}).get("cleanliness_preference", "medium")
-            
-            # Extract work preferences
-            remote_work_ok = user_profile.get("work", {}).get("remote_work_ok", True)
-            hours_online = user_profile.get("work", {}).get("hours_online_needed", 0)
-            wifi_quality = user_profile.get("work", {}).get("wifi_quality_needed", "good")
-            
-            # Extract companion preferences
-            companion_genders = matchmaker_prefs.get("preferred_companion", {}).get("genders", ["any"])
-            
-            # Extract faith preferences
-            faith_data = user_profile.get("faith", {})
-            faith_consider = faith_data.get("consider_in_matching", False)
-            faith_religion = faith_data.get("religion", "")
-            faith_policy = faith_data.get("policy", "open")
-            
-            # Extract match intent and trip styles
-            match_intent = matchmaker_prefs.get("match_intent", [])
-            
-            # Extract accommodation and transport preferences
-            accommodation_types = user_profile.get("travel_prefs", {}).get("accommodation_types", ["hotel", "apartment"])
-            transport_allowed = user_profile.get("travel_prefs", {}).get("transport_allowed", ["train", "plane"])
-            must_haves = user_profile.get("travel_prefs", {}).get("must_haves", [])
-            room_setup = user_profile.get("travel_prefs", {}).get("room_setup", "twin")
-            
-            # Extract bio or create dynamic one
-            bio = user_profile.get("bio", f"Travel enthusiast from {ur.get('City','')}, {ur.get('Country','')}")
-            
-            converted_user = {
-                "email": email,
-                "name": f"{ur.get('FirstName','')} {ur.get('LastName','')}".strip(),
-                "age": calculate_age_from_dob(ur.get("DateOfBirth")),
-                "gender": ur.get("Gender", "Other"),
-                "home_base": {"city": ur.get("City",""), "country": ur.get("Country","")},
-                "languages": languages,
-                "interests": interests,
-                "values": values,
-                "budget": {"amount": budget_amount, "currency": budget_currency},
-                "bio": bio,
-                "travel_prefs": {
-                    "pace": pace,
-                    "accommodation_types": accommodation_types,
-                    "room_setup": room_setup,
-                    "transport_allowed": transport_allowed,
-                    "must_haves": must_haves
-                },
-                "diet_health": {"diet": diet, "allergies": allergies},
-                "comfort": {
-                    "smoking": smoking,
-                    "alcohol": alcohol,
-                    "risk_tolerance": risk_tolerance,
-                    "noise_tolerance": noise_tolerance,
-                    "cleanliness_preference": cleanliness,
-                    "chronotype": chronotype
-                },
-                "work": {
-                    "remote_work_ok": remote_work_ok,
-                    "hours_online_needed": hours_online,
-                    "wifi_quality_needed": wifi_quality
-                },
-                "companion_preferences": {"genders_ok": companion_genders},
-                "faith": {
-                    "consider_in_matching": faith_consider,
-                    "religion": faith_religion,
-                    "policy": faith_policy
-                },
-                "match_intent": match_intent,
-                "railway_raw_data": raw_data  # Keep original data for reference
-            }
-            pool.append({"user": converted_user, "mm": mm})
-        print(f"Pulled {len(pool)} candidates from Railway.")
-        return pool
-
-    except Exception as e:
-        print(f"Railway load failed: {e}")
-        print("Falling back to local files.")
-        users = load_json(USERS_CORE_PATH)
-        mm    = load_json(MM_PATH)
-        mm_by_email = index_by(mm, "email")
-        pool = []
-        for u in users:
-            email = u.get("email")
-            if not email:
-                continue
-            pool.append({"user": u, "mm": mm_by_email.get(email)})
-        return pool
-
-def calculate_age_from_dob(dob_str: str) -> int:
-    try:
-        from datetime import datetime
-        if isinstance(dob_str, str) and dob_str:
-            dob = datetime.fromisoformat(dob_str.replace('Z', '+00:00'))
-        else:
-            return 28
-        today = datetime.now()
-        age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-        return max(18, min(age, 80))
-    except:
-        return 28
+    users = load_json(USERS_CORE_PATH)
+    mm    = load_json(MM_PATH)
+    mm_by_email = index_by(mm, "email")
+    pool = []
+    for u in users:
+        email = u.get("email")
+        if not email: continue
+        pool.append({"user": u, "mm": mm_by_email.get(email)})
+    return pool
 
 def summarize_user(u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
+    # Shorter summary (keeps prompt small / fast)
     parts = []
     parts.append(f"{u.get('name','')}, age {u.get('age','')}")
     hb = u.get("home_base") or {}
@@ -565,12 +426,15 @@ def summarize_user(u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
     parts.append("interests=" + ",".join(intr[:10]))
     vals = u.get("values") or []
     if vals: parts.append("values=" + ",".join(vals[:5]))
+    
+    # Include faith information if available (for better BGE embeddings)
     faith_info = u.get("faith") or {}
     if faith_info.get("consider_in_matching"):
         faith_policy = faith_info.get("policy", "open")
         faith_religion = faith_info.get("religion", "")
         if faith_religion:
             parts.append(f"faith={faith_religion}({faith_policy})")
+    
     return " | ".join(parts)
 
 def query_text(q: Dict[str,Any]) -> str:
@@ -599,37 +463,9 @@ def query_text(q: Dict[str,Any]) -> str:
         f"Bio: {q.get('bio', '')}{faith_str}"
     )
 
-# --------- UI chips helper (interests/values) ----------
-def ui_interests_values(q_user: Dict[str, Any], cand_user: Dict[str, Any], n: int = 4) -> List[str]:
-    """
-    Return up to n short chips drawn from candidate 'interests', preferring overlap with the query user's interests.
-    If not enough, fill from candidate 'values'. Nicely titled for UI.
-    """
-    def tidy(s: str) -> str:
-        s = re.sub(r"\s+", " ", s).strip().lower()
-        # consistent short chips like "Hiking", "Photography", "Food tours"
-        return " ".join(w if w in {"and","of","to","in"} else w.capitalize() for w in s.split())
-
-    qi = [s for s in (q_user.get("interests") or []) if isinstance(s, str)]
-    ui = [s for s in (cand_user.get("interests") or []) if isinstance(s, str)]
-    uv = [s for s in (cand_user.get("values") or []) if isinstance(s, str)]
-
-    # preserve candidate order but prioritize overlaps
-    overlap = [i for i in ui if i in qi]
-    non_overlap = [i for i in ui if i not in overlap]
-    chips = overlap + non_overlap
-    if len(chips) < n:
-        # fill from values, avoiding duplicates
-        for v in uv:
-            if v not in chips:
-                chips.append(v)
-            if len(chips) >= n:
-                break
-
-    chips = chips[:n]
-    return [tidy(c) for c in chips]
-
-# Hard prefilters
+# ---------------------------------------------------------------------
+# Hard prefilters (no bio rule; LLM will reason about bio)
+# ---------------------------------------------------------------------
 def age_ok(query_age: int, cand_user: Dict[str,Any], cand_mm: Dict[str,Any]) -> bool:
     pc = (cand_mm or {}).get("preferred_companion") or {}
     r  = pc.get("age_range")
@@ -644,9 +480,19 @@ def gender_ok(query_gender: str, cand_mm: Dict[str,Any]) -> bool:
     return ("any" in allowed) or (qg in allowed)
 
 def companion_gender_ok(query_companion_pref: str, cand_user: Dict[str,Any]) -> bool:
+    """
+    Hard-coded filtering based on travel companion preferences.
+    If person wants to travel with men, only select men.
+    If person wants to travel with women, only select women.
+    If person wants to travel with anyone, anyone can be suggested.
+    If person wants to travel with nonbinary travelers, only select nonbinary.
+    """
     if not query_companion_pref:
         return True
+
     cand_gender = (cand_user.get("gender") or "").lower()
+
+    # Map companion preferences to gender matching
     if query_companion_pref.lower() == "i'm open to travel with anyone":
         return True
     elif query_companion_pref.lower() == "men":
@@ -655,6 +501,7 @@ def companion_gender_ok(query_companion_pref: str, cand_user: Dict[str,Any]) -> 
         return cand_gender in ["female", "woman"]
     elif query_companion_pref.lower() == "nonbinary travelers":
         return cand_gender in ["non-binary", "nonbinary", "other"]
+
     return True
 
 def langs_ok(query_langs: List[str], cand_mm: Dict[str,Any], cand_user: Dict[str,Any]) -> bool:
@@ -681,6 +528,12 @@ def pace_ok(query_pace: str, cand_user: Dict[str,Any], cand_mm: Dict[str,Any]) -
     return cand_pace == query_pace
 
 def faith_ok(q: Dict[str,Any], cand_user: Dict[str,Any], cand_mm: Dict[str,Any]) -> bool:
+    """
+    Enforce query user's *hard* faith requirement and candidate's own same-faith dealbreaker.
+    - If query policy == 'same_only' => require same token.
+    - If query policy == 'prefer_same' => soft bonus only (not a hard block).
+    - Respect candidate's 'same_faith_required' if it exists in their hard_dealbreakers.
+    """
     qf = (q.get("faith") or {})
     consider = bool(qf.get("consider_in_matching"))
     q_token = _faith_slug(qf.get("religion") or "")
@@ -706,6 +559,8 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
     q_langs = q.get("languages",[])
     q_budget = (q.get("budget") or {}).get("amount", 150)
     q_pace = (q.get("travel_prefs") or {}).get("pace","balanced")
+
+    # Get companion preferences for hard-coded filtering
     q_companion_prefs = q.get("companion_preferences", {})
     q_companion_gender = q_companion_prefs.get("genders_ok", ["I'm open to travel with anyone"])[0] if q_companion_prefs.get("genders_ok") else "I'm open to travel with anyone"
 
@@ -714,14 +569,16 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
         if not langs_ok(q_langs, cm, cu):           continue
         if not age_ok(q_age, cu, cm):               continue
         if not gender_ok(q_gender, cm):             continue
-        if not companion_gender_ok(q_companion_gender, cu): continue
+        if not companion_gender_ok(q_companion_gender, cu): continue  # Hard-coded companion filtering
         if not budget_ok(q_budget, cu):             continue
         if not pace_ok(q_pace, cu, cm):             continue
         if not faith_ok(q, cu, cm):                 continue
         out.append(rec)
     return out
 
-# AI prefilter with BGE cache or heuristic fallback
+# ---------------------------------------------------------------------
+# AI prefilter (BGE-M3 with cache; query-only encode)
+# ---------------------------------------------------------------------
 _EMB: Optional[SentenceTransformer] = None
 _cached_ids = None
 _cached_embs = None
@@ -732,8 +589,8 @@ def ensure_emb(device: str = "cuda"):
         return None
     if _EMB is None:
         dev = device if (hasattr(torch, "cuda") and torch.cuda.is_available()) else "cpu"
-        print(f"Loading BGE-M3 embedding model from local path: {BGE_M3_PATH}...")
-        _EMB = SentenceTransformer(str(BGE_M3_PATH), device=dev)
+        print(f"Loading BGE-M3 embedding model from Hugging Face: {BGE_M3_PATH}...")
+        _EMB = SentenceTransformer(BGE_M3_PATH, device=dev, use_auth_token=HF_TOKEN)
         print("BGE-M3 embedding model loaded.")
     return _EMB
 
@@ -746,7 +603,13 @@ def _load_bge_cache():
         _cached_embs = np.load(EMB_PATH,  allow_pickle=False)   # float16 [N,D]
     return _cached_ids, _cached_embs
 
-def _heuristic_shortlist(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: float, min_k: int) -> List[Dict[str, Any]]:
+def _heuristic_shortlist(q_user: Dict[str, Any],
+                         cands: List[Dict[str, Any]],
+                         percent: float,
+                         min_k: int) -> List[Dict[str, Any]]:
+    """
+    ML/caches unavailable → use the symbolic 'bonuses' as score and shortlist.
+    """
     def _band(v):
         if v is None: return "mid"
         if v <=  90:  return "budget"
@@ -762,6 +625,7 @@ def _heuristic_shortlist(q_user: Dict[str, Any], cands: List[Dict[str, Any]], pe
     q_pace      = (q_user.get("travel_prefs") or {}).get("pace", "balanced")
     q_budget_b  = _band((q_user.get("budget") or {}).get("amount"))
 
+    # Capture query user's faith for bonus calculation
     qf = (q_user.get("faith") or {})
     q_token = _faith_slug(qf.get("religion") or "")
     q_policy = qf.get("policy","open") if qf.get("consider_in_matching") else "open"
@@ -786,11 +650,12 @@ def _heuristic_shortlist(q_user: Dict[str, Any], cands: List[Dict[str, Any]], pe
         gap = abs(_band_idx(q_budget_b) - _band_idx(c_band))
         if gap == 0: score += 0.20
         elif gap == 1: score += 0.10
-
+        
+        # Faith soft bonus for prefer_same or same_only (same_only already enforced in hard filters)
         c_token = ((mm.get("faith_preference") or {}).get("religion_token") or "")
         if q_policy in {"prefer_same","same_only"} and q_token and c_token and q_token == c_token:
             score += 0.15
-
+            
         scored.append((rec, score))
 
     scored.sort(key=lambda x: x[1], reverse=True)
@@ -798,23 +663,29 @@ def _heuristic_shortlist(q_user: Dict[str, Any], cands: List[Dict[str, Any]], pe
     k = min(k, len(scored))
     return [rec for rec, _ in scored[:k]]
 
-def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: float = 0.02, min_k: int = 80) -> List[Dict[str, Any]]:
+def ai_prefilter(q_user: Dict[str, Any],
+                 cands: List[Dict[str, Any]],
+                 percent: float = 0.02,
+                 min_k: int = 80) -> List[Dict[str, Any]]:
     if not cands:
         return []
     if not _ML_OK:
         print("[info] ML stack unavailable; using heuristic shortlist.")
         return _heuristic_shortlist(q_user, cands, percent, min_k)
 
+    # Map candidates to cached embedding rows
     try:
-        ids, embs = _load_bge_cache()
+        ids, embs = _load_bge_cache()              # embs: [N,D] float16
     except Exception as e:
         print(f"[warn] {e}  Using heuristic shortlist instead.")
         return _heuristic_shortlist(q_user, cands, percent, min_k)
 
     email2idx = {email: i for i, email in enumerate(ids)}
-    cand_emails = [rec["user"].get("email") for rec in cands]
+    cand_emails = [rec["user"]["email"] for rec in cands]
+    # For alignment: store index or None if missing
     cand_row_idx = [email2idx.get(e) for e in cand_emails]
 
+    # Encode query only (GPU if available)
     model = ensure_emb()
     if model is None:
         print("[info] No embedding model; using heuristic shortlist.")
@@ -827,16 +698,20 @@ def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: f
         show_progress_bar=False
     )[0].astype("float16")
 
+    # Compute similarities where cache rows exist
     valid_pairs = [(i, idx) for i, idx in enumerate(cand_row_idx) if idx is not None]
-    sims_full = np.full(len(cands), 0.30, dtype="float32")
+    sims_full = np.full(len(cands), 0.30, dtype="float32")  # baseline for uncached users
     if valid_pairs:
-        sub = embs[[idx for (_, idx) in valid_pairs]]
-        sims = (sub @ qv).astype("float32")
+        sub = embs[[idx for (_, idx) in valid_pairs]]       # [K,D] float16
+        sims = (sub @ qv).astype("float32")                 # cosine approx
+        # normalize among valid sims
         s_min, s_max = float(sims.min()), float(sims.max())
         sims_norm = (sims - s_min) / (s_max - s_min) if s_max > s_min else np.full_like(sims, 0.5, dtype="float32")
+        # write back into full vector
         for (pos, _), val in zip(valid_pairs, sims_norm):
             sims_full[pos] = float(val)
 
+    # symbolic bonuses (same as before)
     def _band(v):
         if v is None: return "mid"
         if v <=  90:  return "budget"
@@ -852,6 +727,7 @@ def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: f
     q_pace      = (q_user.get("travel_prefs") or {}).get("pace", "balanced")
     q_budget_b  = _band((q_user.get("budget") or {}).get("amount"))
 
+    # Capture query user's faith for bonus calculation
     qf = (q_user.get("faith") or {})
     q_token = _faith_slug(qf.get("religion") or "")
     q_policy = qf.get("policy","open") if qf.get("consider_in_matching") else "open"
@@ -876,44 +752,62 @@ def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: f
         gap = abs(_band_idx(q_budget_b) - _band_idx(c_band))
         if gap == 0: b += 0.20
         elif gap == 1: b += 0.10
+        
+        # Faith soft bonus for prefer_same or same_only (same_only already enforced in hard filters)
         c_token = ((mm.get("faith_preference") or {}).get("religion_token") or "")
         if q_policy in {"prefer_same","same_only"} and q_token and c_token and q_token == c_token:
             b += 0.15
+            
         bonuses.append(b)
 
+    # combine normalized sims (with alignment) + bonuses
     combined = [(cands[i], float(sims_full[i]) + float(bonuses[i])) for i in range(len(cands))]
     combined.sort(key=lambda x: x[1], reverse=True)
 
+    # keep ~2% (min 80) for general run; you can lower for test
     k = max(min_k, int(math.ceil(len(combined) * percent)))
     k = min(k, len(combined))
     return [rec for rec, _ in combined[:k]]
 
-# Llama ranking
+# ---------------------------------------------------------------------
+# Llama ranking (server-first with local fallback)
+# ---------------------------------------------------------------------
 import requests
+
+# Global variables for local model fallback
 _LLM_FINETUNED = None
 _LLM_BASE = None
 _SERVER_AVAILABLE = None
 
 def check_server_availability():
+    """Check if Llama server is available"""
     global _SERVER_AVAILABLE
     if _SERVER_AVAILABLE is not None:
         return _SERVER_AVAILABLE
+
     try:
         response = requests.get("http://localhost:8002/health", timeout=5)
         if response.status_code == 200:
             data = response.json()
-            _SERVER_AVAILABLE = data.get("status") == "ok" and data.get("models_loaded", False)
+            _SERVER_AVAILABLE = data.get("ok", False)
         else:
             _SERVER_AVAILABLE = False
     except Exception:
         _SERVER_AVAILABLE = False
+
     return _SERVER_AVAILABLE
 
 def get_llama_ranking_server(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
+    """Get ranking from server"""
     try:
         response = requests.post(
             "http://localhost:8002/rank",
-            json={"prompt": prompt, "max_new_tokens": max_new_tokens, "temperature": temperature, "top_p": top_p},
+            json={
+                "prompt": prompt,
+                "max_new_tokens": max_new_tokens,
+                "temperature": temperature,
+                "top_p": top_p
+            },
             timeout=30
         )
         return response.json()["text"]
@@ -921,21 +815,23 @@ def get_llama_ranking_server(prompt, max_new_tokens=600, temperature=0.2, top_p=
         print(f"Llama server error: {e}")
         return None
 
-def _load_llama_4bit(model_path: Path):
+def _load_llama_4bit(model_path: str):
+    """Load Llama model with 4-bit quantization from Hugging Face Hub"""
     bnb_cfg = BitsAndBytesConfig(
         load_in_4bit=True,
         bnb_4bit_quant_type="nf4",
         bnb_4bit_compute_dtype=torch.float16,
         bnb_4bit_use_double_quant=True,
     )
-    print(f"Loading Llama model from local path: {model_path}...")
-    tok = AutoTokenizer.from_pretrained(str(model_path), use_fast=True)
+    print(f"Loading Llama model from Hugging Face: {model_path}...")
+    tok = AutoTokenizer.from_pretrained(model_path, use_fast=True, use_auth_token=HF_TOKEN)
     mdl = AutoModelForCausalLM.from_pretrained(
-        str(model_path),
+        model_path,
         quantization_config=bnb_cfg,
         device_map="auto",
         torch_dtype=torch.float16,
         trust_remote_code=True,
+        use_auth_token=HF_TOKEN,
     )
     mdl.config.use_cache = True
     if mdl.config.pad_token_id is None and tok.eos_token_id is not None:
@@ -943,38 +839,45 @@ def _load_llama_4bit(model_path: Path):
     return {"tokenizer": tok, "model": mdl}
 
 def ensure_llm_finetuned():
+    """Ensure finetuned model is loaded from Hugging Face Hub"""
     global _LLM_FINETUNED
     if _ML_OK and _LLM_FINETUNED is None:
         try:
-            print("Loading fine-tuned Llama (4-bit) from local path...")
+            print("Loading fine-tuned Llama (4-bit) from Hugging Face...")
             _LLM_FINETUNED = _load_llama_4bit(LLAMA_FINETUNED_PATH)
-            print("Fine-tuned Llama loaded from local path")
+            print("✅ Fine-tuned Llama loaded from Hugging Face")
         except Exception as e:
             print(f"[warn] Fine-tuned Llama load failed: {e}")
             _LLM_FINETUNED = None
     return _LLM_FINETUNED
 
 def ensure_llm_base():
+    """Ensure base model is loaded from Hugging Face Hub"""
     global _LLM_BASE
     if _ML_OK and _LLM_BASE is None:
         try:
-            print("Loading base Llama (4-bit) from local path...")
+            print("Loading base Llama (4-bit) from Hugging Face...")
             _LLM_BASE = _load_llama_4bit(LLAMA_BASE_PATH)
-            print("Base Llama loaded from local path")
+            print("✅ Base Llama loaded from Hugging Face")
         except Exception as e:
             print(f"[warn] Base Llama load failed: {e}")
             _LLM_BASE = None
     return _LLM_BASE
 
 def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9):
+    """Get ranking using local model"""
     model_data = ensure_llm_finetuned()
     if model_data is None:
         model_data = ensure_llm_base()
     if model_data is None:
         return None
+
     tok, mdl = model_data["tokenizer"], model_data["model"]
+
+    # Prepare inputs
     inputs = tok(prompt, return_tensors="pt", truncation=True, max_length=4096)
     inputs = {k: v.to(mdl.device) for k, v in inputs.items()}
+
     try:
         with torch.inference_mode():
             out = mdl.generate(
@@ -995,49 +898,33 @@ def get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0
         return None
 
 def get_llama_ranking(prompt, max_new_tokens=600, temperature=0.2, top_p=0.9):
+    """Get ranking from server or fallback to local model"""
+    # First try server
     if check_server_availability():
-        print("Using Llama API server...")
+        print("🔄 Using Llama server...")
         result = get_llama_ranking_server(prompt, max_new_tokens, temperature, top_p)
         if result is not None:
             return result
         else:
-            print("API server failed, falling back to local model...")
-    print("Using local Llama model...")
+            print("⚠️  Server failed, falling back to local model...")
+
+    # Fallback to local model
+    print("🔄 Using local Llama model...")
     return get_llama_ranking_local(prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
 
 def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_k:int=5) -> str:
+    # Keep prompt compact
     head = (
-    "ROLE: You are a discerning travel-matchmaker. Rank candidates for holistic trip compatibility.\n"
-    "\n"
-    "EVALUATE ON (in order):\n"
-    "• Shared & complementary interests/activities (what they'd actually do together)\n"
-    "• Pace fit (relaxed/balanced/packed) and daily rhythm (chronotype)\n"
-    "• Budget band compatibility (budget/mid/lux) and split expectations\n"
-    "• Language overlap (count of shared chat languages)\n"
-    "• Diet & alcohol/smoking compatibility; allergies (hard constraints)\n"
-    "• Transport allowed, accommodation/room setup, and must-have amenities (wifi, workspace, near_station, etc.)\n"
-    "• Remote-work needs (hours online, wifi quality)\n"
-    "• Comfort & psychology signals: risk tolerance, noise/cleanliness preferences, values (e.g., culture, nature, community)\n"
-    "• Faith policy: if query is 'same_only', enforce same faith; if 'prefer_same', treat as a bonus. Keep faith private—do not disclose it in text.\n"
-    "\n"
-    "OUTPUT: Return ONLY valid JSON with key 'matches' as an array of objects:\n"
-    "  { email, name, explanation, compatibility_score }\n"
-    "\n"
-    "EXPLANATION STYLE (STRICT):\n"
-    "• ONE sentence, MUST start with 'For you,' and be 18–28 words.\n"
-    "• Include: (1) 2 concrete shared interests, (2) the pace word, (3) budget band term (budget/mid/lux),\n"
-    "  and at least one of {language overlap, diet match, transport/amenity fit, remote-work fit}.\n"
-    "• Be specific and activity-oriented; avoid vague traits like 'friendly', 'nice', 'open-minded', or generic buzzwords.\n"
-    "• Do NOT mention demographics (age/gender) or private details; do NOT output lists or extra text—only the JSON.\n"
-    "\n"
-    "SCORING:\n"
-    "• compatibility_score is a float 0.00–1.00 (two decimals), calibrated by the above criteria; higher means better trip fit.\n"
-    "\n"
-    "Query User:\n"
-    f"{query_text(q_user)}\n\n"
-    "Candidates:\n"
+        "You are a precise travel-match expert. Rank candidates for holistic trip compatibility.\n"
+        "Focus on: shared interests, complementary activities, budget compatibility, language overlap, "
+        "travel pace, dietary needs, transport preferences, accommodation types, and cultural compatibility.\n"
+        "Trip context: weekend to multi-week.\n"
+        "Return ONLY valid JSON with key 'matches' as an array of objects with fields: email, name, explanation "
+        "(ONE sentence, must start with 'For you,' and be specific), compatibility_score (0.0–1.0).\n\n"
+        "Query User:\n"
+        f"{query_text(q_user)}\n\n"
+        "Candidates:\n"
     )
-
     body = []
     for i, rec in enumerate(shortlist):
         u, m = rec["user"], rec["mm"]
@@ -1045,6 +932,7 @@ def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_
     return head + "\n".join(body)
 
 def _extract_json(text: str) -> Optional[dict]:
+    # robust extractor: grab first {...} region
     start = text.find("{")
     end   = text.rfind("}")
     if start == -1 or end == -1 or end <= start:
@@ -1053,6 +941,8 @@ def _extract_json(text: str) -> Optional[dict]:
     try:
         return json.loads(chunk)
     except Exception:
+        # try to trim trailing commas or stray chars
+        # simple fallback: find last "}" that yields parse
         for j in range(end, start, -1):
             try:
                 return json.loads(text[start:j])
@@ -1060,122 +950,17 @@ def _extract_json(text: str) -> Optional[dict]:
                 continue
     return None
 
-def craft_specific_reason(q: Dict[str,Any], u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
-    qi = set(q.get("interests",[]))
-    ui = set(u.get("interests",[]))
-    shared_i = sorted(qi & ui)
-    pace_q = (q.get("travel_prefs") or {}).get("pace","balanced")
-    pace_u = (u.get("travel_prefs") or {}).get("pace","balanced")
-    langs = sorted(set(q.get("languages",[])) & set(u.get("languages",[])))
-    budget_gap = abs((q.get("budget") or {}).get("amount",150) - (u.get("budget") or {}).get("amount",150))
-    diet_q = (q.get("diet_health") or {}).get("diet","none")
-    diet_u = (u.get("diet_health") or {}).get("diet","none")
-    city_u = (u.get("home_base") or {}).get("city","")
-    
-    # Extract additional dynamic data from Railway
-    raw_data = u.get("railway_raw_data", {})
-    match_intent = raw_data.get("match_intent", [])
-    chronotype_u = (u.get("comfort") or {}).get("chronotype", "flexible")
-    chronotype_q = (q.get("comfort") or {}).get("chronotype", "flexible")
-    transport_u = (u.get("travel_prefs") or {}).get("transport_allowed", [])
-    transport_q = (q.get("travel_prefs") or {}).get("transport_allowed", [])
-    shared_transport = set(transport_u) & set(transport_q)
-    must_haves_u = (u.get("travel_prefs") or {}).get("must_haves", [])
-    must_haves_q = (q.get("travel_prefs") or {}).get("must_haves", [])
-    shared_must_haves = set(must_haves_u) & set(must_haves_q)
-    
-    # Extract work compatibility
-    work_remote_u = (u.get("work") or {}).get("remote_work_ok", True)
-    work_remote_q = (q.get("work") or {}).get("remote_work_ok", True)
-    work_hours_u = (u.get("work") or {}).get("hours_online_needed", 0)
-    work_hours_q = (q.get("work") or {}).get("hours_online_needed", 0)
-    
-    # Extract values compatibility
-    qv = set(q.get("values",[]))
-    uv = set(u.get("values",[]))
-    shared_values = sorted(qv & uv)
-
-    hooks = []
-    
-    # Match intent compatibility
-    if match_intent:
-        hooks.append(f"shared interest in {', '.join(match_intent[:2])}")
-    
-    # Shared interests
-    if shared_i: 
-        hooks.append(f"shared love for {', '.join(shared_i[:2])}")
-    
-    # Language compatibility
-    if langs:    
-        hooks.append(f"you both speak {', '.join(langs[:2])}")
-    
-    # Pace compatibility
-    if pace_q == pace_u: 
-        hooks.append(f"matching {pace_q} pace")
-    
-    # Chronotype compatibility
-    if chronotype_q == chronotype_u and chronotype_u != "flexible":
-        hooks.append(f"both {chronotype_u}")
-    
-    # Budget compatibility
-    if budget_gap <= 30: 
-        hooks.append("similar daily budgets")
-    
-    # Diet compatibility
-    if diet_u != "none" and diet_u == diet_q: 
-        hooks.append(f"both {diet_u}")
-    
-    # Transport compatibility
-    if shared_transport:
-        hooks.append(f"prefer {', '.join(list(shared_transport)[:2])} travel")
-    
-    # Must-haves compatibility
-    if shared_must_haves:
-        hooks.append(f"both need {', '.join(list(shared_must_haves)[:2])}")
-    
-    # Work compatibility
-    if work_remote_u == work_remote_q and work_remote_q:
-        if abs(work_hours_u - work_hours_q) <= 1:
-            hooks.append("compatible work schedules")
-    
-    # Values compatibility
-    if shared_values:
-        hooks.append(f"shared values like {', '.join(shared_values[:2])}")
-    
-    # Location
-    if city_u:   
-        hooks.append(f"and they are based in {city_u}")
-    
-    # Fallback
-    if not hooks:
-        hooks.append("complementary interests and compatible travel habits")
-    
-    return "For you, this match fits because of " + ", ".join(hooks) + "."
-
-def llm_rank_fallback(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=5) -> List[Dict[str,Any]]:
-    results = []
-    for rec in shortlist[:out_top]:
-        u = rec["user"]
-        reason = craft_specific_reason(q_user, u, rec.get("mm"))
-        base = 0.60
-        bonus = 0.25 * jaccard(q_user.get("interests",[]), u.get("interests",[]))
-        lang_bonus = 0.05 * min(1, len(set(q_user.get("languages",[])) & set(u.get("languages",[]))))
-        pace_bonus = 0.05 if (q_user.get("travel_prefs",{}).get("pace","balanced") ==
-                              (u.get("travel_prefs") or {}).get("pace","balanced")) else 0.0
-        score = min(max(base + bonus + lang_bonus + pace_bonus, 0.0), 0.95)
-        results.append({
-            "email": u.get("email"),
-            "name": u.get("name"),
-            "explanation": reason,
-            "compatibility_score": round(score, 2)
-        })
-    return results
-
 def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=5) -> List[Dict[str,Any]]:
+    # Keep the LLM work small: only top-10 from shortlist
     shortlist_for_llm = shortlist[:10]
+
     system_prompt = "Return ONLY valid JSON with key 'matches'. No explanations. No extra text."
     prompt = build_llm_prompt(q_user, shortlist_for_llm, top_k=out_top)
+
+    # Combine system prompt and user prompt
     full_prompt = f"System: {system_prompt}\nUser: {prompt}\nAssistant:"
+
+    # Use server for ranking
     text = get_llama_ranking(full_prompt, max_new_tokens=120, temperature=0.0, top_p=0.9)
 
     if text is None:
@@ -1202,68 +987,170 @@ def llm_rank(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=
         print(f"[warn] LLM response parsing failed: {e}")
 
     return llm_rank_fallback(q_user, shortlist_for_llm, out_top)
+def extract_key_adjectives(explanation: str) -> str:
+    """
+    Return 4 simple, clear, human-friendly adjectives or short adjective phrases.
+    Never return nouns like 'Train' or unclear words like 'Relaxed' or 'Budget'.
+    Uses 'Foody' as preferred spelling.
+    """
+    text = (explanation or "").lower()
 
+    # Ordered candidates. First matches have higher priority.
+    rules = [
+        # Pace
+        (r"\b(relaxed|slow|easy|chill|laid back)\b",           "Calm"),
+        (r"\bbalanced|moderate\b",                             "Balanced pace"),
+        (r"\bpacked|fast|full itinerary|tight schedule\b",     "Fast pace"),
+
+        # Budget
+        (r"\bbudget|backpack(ing|er)|hostel\b",                "Budget friendly"),
+        (r"\bluxury|5 ?star|upscale|premium\b",                 "Luxury minded"),
+
+        # Interests
+        (r"\bhike|hiking|mountain|trail|trek\b",               "Adventurous"),
+        (r"\bmuseum|history|architecture|gallery|heritage\b",  "Cultural"),
+        (r"\bfood|street food|restaurant|market\b",            "Foody"),
+        (r"\bphoto|photography|scenic|view|rooftop\b",         "Creative"),
+        (r"\bfestival|nightlife|club|party|live music\b",      "Social"),
+        (r"\bspa|wellness|thermal|meditat(e|ion)|yoga\b",      "Wellness focused"),
+        (r"\bbeach|island|coast|sunbath(ing)?\b",              "Beach loving"),
+        (r"\black|forest|lake|nature|outdoor\b",               "Nature loving"),
+
+        # Languages
+        (r"\bmultilingual|speak(s)? (many|multiple) language(s)?\b", "Speaks many languages"),
+        (r"\blanguage(s)?\b",                                   "Speaks many languages"),
+
+        # Food needs / diet
+        (r"\bvegetarian\b",                                     "Vegetarian friendly"),
+        (r"\bvegan\b",                                          "Vegan friendly"),
+        (r"\bhalal\b",                                          "Halal friendly"),
+        (r"\bkosher\b",                                         "Kosher friendly"),
+        (r"\bgluten[- ]?free\b",                                "Gluten-free friendly"),
+
+        # Work and comfort
+        (r"\bremote work|workation|needs wifi|wifi\b",          "Remote-work friendly"),
+        (r"\bquiet|low noise\b",                                "Quiet"),
+        (r"\blively|high noise\b",                              "Lively"),
+        (r"\bclean|tidy\b",                                     "Tidy"),
+        (r"\beasygoing|flexible\b",                             "Easygoing"),
+
+        # Transport hints (keep adjectival, not nouns)
+        (r"\btrain|public transport|tram|metro\b",              "Public-transport friendly"),
+        (r"\broad trip|car\b",                                  "Road-trip ready"),
+        (r"\bplane|flight\b",                                   "Flight ready"),
+    ]
+
+    # Collect unique traits in order
+    traits = []
+    import re
+    for pat, label in rules:
+        if re.search(pat, text) and label not in traits:
+            traits.append(label)
+        if len(traits) >= 4:
+            break
+
+    # Sensible, simple fallbacks if we found fewer than 4
+    fallbacks = ["Friendly", "Cultural", "Foody", "Open minded", "Adventurous", "Calm", "Budget friendly"]
+    for fb in fallbacks:
+        if len(traits) >= 4:
+            break
+        if fb not in traits:
+            traits.append(fb)
+
+    # Final cleanup: keep exactly 4, title-case consistently, no trailing spaces
+    def tidy(s: str) -> str:
+        # Keep intended capitalization for phrases
+        return s.strip()
+
+    return ", ".join(tidy(t) for t in traits[:4])
+
+def craft_specific_reason(q: Dict[str,Any], u: Dict[str,Any], mm: Optional[Dict[str,Any]]) -> str:
+    qi = set(q.get("interests",[]))
+    ui = set(u.get("interests",[]))
+    shared_i = sorted(qi & ui)
+    pace_q = (q.get("travel_prefs") or {}).get("pace","balanced")
+    pace_u = (u.get("travel_prefs") or {}).get("pace","balanced")
+    langs = sorted(set(q.get("languages",[])) & set(u.get("languages",[])))
+    budget_gap = abs((q.get("budget") or {}).get("amount",150) - (u.get("budget") or {}).get("amount",150))
+    diet_q = (q.get("diet_health") or {}).get("diet","none")
+    diet_u = (u.get("diet_health") or {}).get("diet","none")
+    city_u = (u.get("home_base") or {}).get("city","")
+
+    hooks = []
+    if shared_i: hooks.append(f"shared love for {', '.join(shared_i[:2])}")
+    if langs:    hooks.append(f"you both speak {', '.join(langs[:2])}")
+    if pace_q == pace_u: hooks.append(f"matching {pace_q} pace")
+    if budget_gap <= 30: hooks.append("similar daily budgets")
+    if diet_u != "none" and diet_u == diet_q: hooks.append(f"both {diet_u}")
+    if city_u:   hooks.append(f"and they're based in {city_u}")
+    if not hooks:
+        hooks.append("complementary interests and compatible travel habits")
+    return "For you, this match fits because of " + ", ".join(hooks) + "."
+
+def llm_rank_fallback(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], out_top:int=5) -> List[Dict[str,Any]]:
+    results = []
+    for rec in shortlist[:out_top]:
+        u = rec["user"]
+        reason = craft_specific_reason(q_user, u, rec.get("mm"))
+        score = 0.70 + 0.25 * jaccard(q_user.get("interests",[]), u.get("interests",[]))
+        results.append({
+            "email": u.get("email"),
+            "name": u.get("name"),
+            "explanation": reason,
+            "compatibility_score": round(min(max(score, 0.0), 0.99), 2)
+        })
+    return results
+
+# ---------------------------------------------------------------------
 # Run
+# ---------------------------------------------------------------------
 def main():
     q_user = interactive_new_user()
     append_to_json(q_user, LOCAL_DB_PATH)
-    print(f"Saved your profile to {LOCAL_DB_PATH}")
+    print(f"\n✅ Saved your profile to {LOCAL_DB_PATH}")
 
     pool = load_pool()
     if not pool:
         print("No candidates found. Provide users_core.json and matchmaker_profiles.json.")
         return
 
+    # 1) Hard prefilters
     t0 = time.time()
     hard = hard_prefilter(q_user, pool)
-    print(f"Hard prefilter: {len(hard)} candidates ({time.time()-t0:.2f}s)")
+    print(f"✅ Hard prefilter: {len(hard)} candidates (in {time.time()-t0:.2f}s)")
     if not hard:
         print("No candidates remained after hard prefilters. Loosen languages, pace, or budget.")
         return
 
+    # 2) AI prefilter (BGE cache → fast)
     t1 = time.time()
     shortlist = ai_prefilter(q_user, hard, percent=0.02, min_k=80)
-    print(f"AI prefilter: {len(shortlist)} candidates ({time.time()-t1:.2f}s)")
+    print(f"✅ AI prefilter: {len(shortlist)} candidates (in {time.time()-t1:.2f}s)")
     if not shortlist:
         print("No candidates after AI prefilter.")
         return
 
+    # 3) Llama ranking (uses fine-tuned first)
     t2 = time.time()
     final = llm_rank(q_user, shortlist, out_top=5)
-    print(f"Llama ranking produced {len(final)} matches ({time.time()-t2:.2f}s)")
+    print(f"✅ Llama ranking produced {len(final)} matches (in {time.time()-t2:.2f}s)")
 
-    # Clear and informative presentation similar to a card:
-    email_to_user = {rec["user"].get("email"): rec["user"] for rec in shortlist}
+    # 4) Threshold >= 0.75
+    high_quality = [m for m in final if float(m.get("compatibility_score", 0)) >= 0.75]
 
-    def _band(amount: Optional[float]) -> str:
-        if amount is None: return "mid"
-        if amount <= 90:   return "budget"
-        if amount >= 180:  return "lux"
-        return "mid"
-
-    print("\nTop Recommendations")
-    print("-------------------")
+    print("\n— Top Recommendations —")
     for i, m in enumerate(final, 1):
-        u = email_to_user.get(m.get("email"), {}) or {}
-        hb = u.get("home_base") or {}
-        city = hb.get("city", "")
-        country = hb.get("country", "")
-        langs = "/".join(u.get("languages", [])) or "—"
-        pace_u = (u.get("travel_prefs") or {}).get("pace", "balanced")
-        budget_u = (u.get("budget") or {}).get("amount", None)
-        band = _band(budget_u)
-
-        chips = ui_interests_values(q_user, u, n=4)  # <= 4 short chips from interests/values
-
         try:
-            pct = int(round(float(m.get("compatibility_score", 0)) * 100))
+            pct = int(round(float(m.get("compatibility_score",0))*100))
         except Exception:
             pct = 0
-
-        print(f"{i}. {m.get('name','Unknown')} — {pct}% match")
-        print(f"   {city or '—'} | {', '.join(chips) if chips else '—'}")
-        print(f"   Pace: {pace_u} | Budget: {('€' + str(budget_u)) if budget_u else '—'} [{band}] | Languages: {langs}")
-        print(f"   Why: {m.get('explanation','')}\n")
+        
+        # Extract 4 key adjectives from explanation
+        explanation = m.get("explanation", "")
+        adjectives = extract_key_adjectives(explanation)
+        
+        print(f"{i}. {m.get('name')} - {pct}%")
+        print(f"   {adjectives}")
 
 if __name__ == "__main__":
     main()

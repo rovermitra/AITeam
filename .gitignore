@@ -64,6 +64,12 @@ artifacts/
 test_output/
 tmp/
 
+# Railway database exports - DO NOT UPLOAD TO GITHUB
+railway_data/
+railway_data/*.json
+railway_data/*.csv
+railway_data/*.txt
+
 # Sensitive data files - DO NOT UPLOAD TO GITHUB
 travel_ready_user_profiles.json
 data/travel_ready_user_profiles.json

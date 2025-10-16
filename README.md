@@ -17,10 +17,12 @@ RoverMitra/
 ├── api.py                           # FastAPI REST API server for matching
 ├── matcher.py                       # Core matching engine with 3-stage pipeline
 ├── config.py                        # Configuration and path management
-├── serve_llama.py                   # Llama model server (FastAPI)
+├── llama_api_server.py              # Llama API server with Railway integration
+├── serve_llama.py                   # Legacy Llama model server (deprecated)
 ├── build_bge_cache.py               # Build BGE-M3 embeddings cache
 ├── finetune_llama.py                # Fine-tuning script
 ├── run_data_pipeline.py             # Complete data generation pipeline
+├── fetch_railway_data.py            # Railway Postgres data fetcher
 ├── requirements.txt                 # Python dependencies
 ├── setup.sh                         # Automated setup script
 ├── Scripts/                         # Data generation scripts
@@ -31,6 +33,9 @@ RoverMitra/
 │   └── users_core.json             # User profiles (10k users)
 ├── MatchMaker/data/
 │   └── matchmaker_profiles.json    # Matchmaker preferences
+├── railway_data/                    # Railway database exports
+│   ├── users_data.json              # Railway users export
+│   └── matchmaker_profiles_data.json # Railway matchmaker profiles export
 ├── models/
 │   ├── llama-3.2-3b-instruct/      # Base Llama model
 │   └── llama-travel-matcher/        # Fine-tuned model
@@ -94,7 +99,7 @@ graph LR
     
     subgraph "Application Runtime"
         F[main.py] --> F1[travel_ready_user_profiles.json]
-        G[serve_llama.py] --> G1[FastAPI Server]
+        G[llama_api_server.py] --> G1[FastAPI Server]
     end
     
     A1 --> C
@@ -203,6 +208,98 @@ python build_bge_cache.py
 python run_data_pipeline.py
 ```
 
+## Railway Database Integration
+
+RoverMitra now supports **dynamic data integration** with Railway Postgres database, eliminating hard-coded responses and ensuring all user data is dynamically extracted from the database.
+
+### Railway Data Structure
+
+The system connects to Railway Postgres and extracts rich user data from two main tables:
+
+#### Users Table (`"Users"`)
+- **Basic Info**: Id, Email, FirstName, LastName, DateOfBirth, Gender
+- **Location**: Address, City, State, PostalCode, Country  
+- **Profile**: ProfilePictureUrl, UserName, PhoneNumber
+- **Status**: IsActive, IsEmailVerified, IsPhoneVerified, IsProfileComplete, IsIdVerified
+
+#### Matchmaker Profiles Table (`matchmaker_profiles`)
+- **Core Fields**: id, match_profile_id, email, status, created_at, updated_at
+- **JSON Fields**: visibility, preferences, compatibility_scores, **raw_data**
+
+### Rich Data Extraction
+
+The `raw_data` field contains comprehensive user preferences in a nested structure:
+
+```json
+{
+  "user_profile": {
+    "interests": ["festivals", "thermal baths", "skiing", "mountains"],
+    "values": ["food", "learning"],
+    "budget": {"amount": 74, "currency": "PHP"},
+    "travel_prefs": {"pace": "relaxed", "accommodation_types": ["hotel"]},
+    "diet_health": {"diet": "lactose-free", "allergies": ["none"]},
+    "comfort": {"smoking": "occasional", "alcohol": "none", "risk_tolerance": "low"},
+    "work": {"remote_work_ok": true, "hours_online_needed": 1},
+    "faith": {"consider_in_matching": true, "religion": "Islam", "policy": "same_only"}
+  },
+  "matchmaker_preferences": {
+    "language_policy": {"preferred_chat_languages": ["de", "en", "tl"]},
+    "match_intent": ["festival_trip", "co_work_trip"],
+    "preferred_companion": {"genders": ["any"], "age_range": [28, 43]}
+  }
+}
+```
+
+### Dynamic Field Usage
+
+The system dynamically extracts all user data from Railway Postgres:
+
+```python
+converted_user = {
+    "languages": ["de", "en", "tl"],                    # From Railway
+    "interests": ["festivals", "thermal baths"],         # From Railway
+    "values": ["food", "learning"],                      # From Railway
+    "budget": {"amount": 74, "currency": "PHP"},         # From Railway
+    "travel_prefs": {"pace": "relaxed"},                 # From Railway
+    "railway_raw_data": raw_data                         # Preserved
+}
+```
+
+### Railway Data Fetching
+
+#### Manual Data Export
+```bash
+# Export Railway data to local files
+python fetch_railway_data.py --output-dir railway_data --limit 1000
+
+# Creates:
+# railway_data/users_data.json
+# railway_data/matchmaker_profiles_data.json
+# railway_data/data_summary_report.txt
+```
+
+#### Automatic Integration
+The system automatically connects to Railway Postgres when running:
+```bash
+# Automatically fetches from Railway database
+python main.py
+python llama_api_server.py
+```
+
+### Enhanced Match Explanations
+
+Match explanations use dynamic Railway data to provide detailed compatibility reasons:
+
+**Example**: `"For you, this match fits because of shared love for history, mountains, you both speak de, matching relaxed pace, similar daily budgets, prefer plane, train travel, shared values like food, and they are based in Salzburg."`
+
+### Key Benefits
+
+- **Dynamic Data Extraction**: All user data extracted from Railway Postgres
+- **Rich User Profiles**: Comprehensive Railway user data utilization
+- **Accurate Matching**: Based on actual user preferences and data
+- **Data Preservation**: Original Railway data maintained for reference
+- **Fallback Support**: Graceful degradation to local files if Railway unavailable
+
 ## Model Fine-Tuning
 
 ### CPU Training (Universal)
@@ -262,10 +359,10 @@ python api.py
 python main.py
 ```
 
-### Option 3: Server Mode (Legacy)
+### Option 3: Server Mode (Updated)
 ```bash
-# Terminal 1: Start Llama server
-python serve_llama.py
+# Terminal 1: Start Llama server with Railway integration
+python llama_api_server.py
 
 # Terminal 2: Run main application
 python main.py
@@ -274,7 +371,7 @@ python main.py
 ### Option 4: Background Server
 ```bash
 # Start server in background
-python serve_llama.py &
+python llama_api_server.py &
 
 # Run main application
 python main.py
@@ -374,12 +471,12 @@ curl -X POST http://localhost:8000/match \
 - Interactive docs: http://localhost:8000/docs
 - OpenAPI schema: http://localhost:8000/openapi.json
 
-### Llama Server (serve_llama.py) - Port 8002
+### Llama Server (llama_api_server.py) - Port 8002
 
 #### Health Check
 ```bash
 curl http://localhost:8002/health
-# Returns: {"ok":true,"device":"cuda:0","model":"llama-travel-matcher"}
+# Returns: {"status": "ok", "models_loaded": true}
 ```
 
 #### Text Generation
@@ -412,8 +509,8 @@ python build_bge_cache.py
 #### Server Not Responding
 ```bash
 # Solution: Restart server
-pkill -f serve_llama.py
-python serve_llama.py &
+pkill -f llama_api_server.py
+python llama_api_server.py &
 ```
 
 #### CUDA Out of Memory
@@ -426,6 +523,33 @@ CUDA_VISIBLE_DEVICES="" python main.py
 ```bash
 # Solution: Install missing packages
 pip install fastapi uvicorn
+```
+
+#### Railway Database Connection Issues
+```bash
+# Check Railway connection
+python -c "from main import load_pool; print('Railway connection:', 'OK' if load_pool() else 'Failed')"
+
+# Export Railway data locally as fallback
+python fetch_railway_data.py --output-dir railway_data
+
+# Test with local data only
+# Edit main.py to force local file usage
+```
+
+#### Hard-coded Data Issues
+```bash
+# Verify dynamic data extraction is working
+python -c "
+from main import load_pool
+pool = load_pool()
+if pool:
+    user = pool[0]['user']
+    print('Languages:', user.get('languages', []))
+    print('Interests:', user.get('interests', []))
+    print('Budget:', user.get('budget', {}))
+    print('Railway data preserved:', 'railway_raw_data' in user)
+"
 ```
 
 ## Development Workflow
@@ -480,7 +604,27 @@ python Scripts/matchmaker_data_generator.py
 python build_bge_cache.py
 ```
 
-## Recent Updates (October 12, 2024)
+## Recent Updates (December 2024)
+
+### Railway Database Integration
+- **Dynamic Data Extraction**: All user data dynamically extracted from Railway Postgres
+- **Rich User Profiles**: Comprehensive Railway user data including interests, values, budget, travel preferences
+- **Enhanced Match Explanations**: Match reasons based on actual user data
+- **Data Preservation**: Original Railway data preserved for reference and debugging
+- **Fallback Support**: Graceful degradation to local files if Railway database unavailable
+
+### New Components Added
+- **`fetch_railway_data.py`**: Railway Postgres data fetcher with export capabilities
+- **`llama_api_server.py`**: Enhanced Llama API server with Railway integration
+- **Railway Data Structure**: Support for nested `user_profile` and `matchmaker_preferences` data
+
+### Key Improvements
+- **Dynamic Data Extraction**: All user data extracted from Railway database
+- **Accurate Matching**: Based on actual user preferences and data
+- **Rich Compatibility**: Enhanced matching using match intent, chronotype, transport preferences, work schedules
+- **Detailed Explanations**: Match reasons using actual user interests, values, and preferences
+
+### Previous Updates (October 12, 2024)
 
 ### New Core Components Added
 - **`matcher.py`** (20.9KB): Complete 3-stage matching engine with ML integration
@@ -498,13 +642,15 @@ python build_bge_cache.py
 
 - **Scalable**: Handles 10k+ parallel user requests
 - **Hybrid AI**: Server-based with local fallback
-- **Personalized**: Detailed compatibility explanations
+- **Personalized**: Detailed compatibility explanations based on actual user data
 - **Robust**: Graceful fallbacks for all components
 - **Clean Output**: Suppressed warnings for better UX
 - **Cultural Awareness**: Authentic names and geographic data
-- **Rich Profiles**: Comprehensive travel preferences and personality data
+- **Rich Profiles**: Comprehensive travel preferences and personality data from Railway database
+- **Dynamic Data**: All data extracted from Railway Postgres
 - **REST API**: Full HTTP API with interactive documentation
 - **Modular Design**: Clean separation of concerns between matching, API, and configuration
+- **Railway Integration**: Seamless connection to Railway Postgres with fallback to local files
 
 ## License
 
