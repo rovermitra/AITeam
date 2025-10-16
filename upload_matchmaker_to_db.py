@@ -11,7 +11,7 @@ from pathlib import Path
 def upload_matchmaker_data():
     """Upload matchmaker data directly to Railway Postgres"""
     
-    DATABASE_URL = "postgresql://postgres:RzBikKnKvwEeEUMDmGYFskiVJStCeOOH@hopper.proxy.rlwy.net:11809/railway"
+    DATABASE_URL = "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:YOUR_PORT/YOUR_DATABASE"
     
     try:
         print("🔗 Connecting to Railway Postgres...")

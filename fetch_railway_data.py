@@ -21,7 +21,7 @@ from datetime import datetime
 import pandas as pd
 
 # Railway Database Configuration
-RAILWAY_DB_URL = "postgresql://postgres:RzBikKnKvwEeEUMDmGYFskiVJStCeOOH@hopper.proxy.rlwy.net:11809/railway"
+RAILWAY_DB_URL = "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:YOUR_PORT/YOUR_DATABASE"
 
 class RailwayDataFetcher:
     """Fetches data from Railway Postgres database"""

@@ -352,7 +352,7 @@ def load_pool():
         import psycopg2
         from datetime import datetime
 
-        DATABASE_URL = os.getenv("DATABASE_URL") or "postgresql://postgres:RzBikKnKvwEeEUMDmGYFskiVJStCeOOH@hopper.proxy.rlwy.net:11809/railway"
+        DATABASE_URL = os.getenv("DATABASE_URL") or "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:YOUR_PORT/YOUR_DATABASE"
         print("Connecting to Railway Postgres...")
         conn = psycopg2.connect(DATABASE_URL)
         cursor = conn.cursor()
