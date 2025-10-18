@@ -126,7 +126,7 @@ def _startup():
     print("🚀 Server startup initiated")
     import threading
     # Load model in background thread to not block startup
-    threading.Thread(target=load_model_once, daemon=True).start()
+    #threading.Thread(target=load_model_once, daemon=True).start()
     print("🚀 Model loading started in background thread")
 
 @app.get("/")
