@@ -121,13 +121,16 @@ class RankReq(BaseModel):
     temperature: float = 0.2
     top_p: float = 0.9
 
+
 @app.on_event("startup")
 def _startup():
     print("🚀 Server startup initiated")
     import threading
     # Load model in background thread to not block startup
-    #threading.Thread(target=load_model_once, daemon=True).start()
-    print("🚀 Model loading started in background thread")
+    # threading.Thread(target=load_model_once, daemon=True).start()
+    print("🚀 Model loading DISABLED for testing. Server should start instantly.") # <-- CHANGE THIS
+
+
 
 @app.get("/")
 def root():
