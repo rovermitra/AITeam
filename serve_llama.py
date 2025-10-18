@@ -128,8 +128,8 @@ def _startup():
     print("🚀 Server startup initiated")
     import threading
     # Load model in background thread to not block startup
-    # threading.Thread(target=load_model_once, daemon=True).start()
-    print("🚀 Model loading DISABLED for testing. Server should start instantly.") # <-- CHANGE THIS
+    threading.Thread(target=load_model_once, daemon=True).start()
+    print("🚀 Threading in enabled.") # <-- CHANGE THIS
 
 
 
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     import uvicorn
     
     # Railway provides PORT environment variable
-    port = int(os.getenv("PORT", "8080"))
+    port = int(os.getenv("PORT", "8000"))
     host = os.getenv("HOST", "0.0.0.0")
     
     print(f"[serve_llama] Starting server on {host}:{port}")
