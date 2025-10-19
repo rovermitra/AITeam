@@ -471,6 +471,10 @@ async def startup_event():
     print(f"   Llama Model: {'✅' if llama_ok else '❌'}")
     print(f"   Railway Data: {'✅' if data_ok else '❌'}")
 
+@app.get("/")
+def root():
+    return {"message": "RoverMitra Llama Server - FAST APIs is running", "status": "ok"}
+    
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint"""
