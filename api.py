@@ -2,13 +2,17 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
 import uvicorn
+from pyngrok import ngrok
+from datetime import datetime
 
-# Import the core logic and initialization functions
+# Import your logic
 from matcher import find_matches, load_pool, initialize_models
 
-# --- Pydantic Models for API data validation ---
-# These models define the exact structure of your API's JSON input and output.
+# --- Global variables ---
+ngrok_public_url: Optional[str] = None
+match_history: List[Dict[str, Any]] = []
 
+# --- Pydantic models ---
 class HomeBase(BaseModel):
     city: str
     country: str
@@ -51,39 +55,142 @@ class MatchResult(BaseModel):
 class MatchResponse(BaseModel):
     matches: List[MatchResult]
 
-# --- FastAPI Application ---
+# --- FastAPI app ---
 app = FastAPI(
     title="RoverMitra Matchmaking API",
     description="Provides travel companion matches based on user profiles.",
-    version="1.0.0"
+    version="2.0.0"
 )
 
 @app.on_event("startup")
 def startup_event():
-    """Actions to perform on application startup."""
-    print("--- Server starting up ---")
-    load_pool()          # Load user data from JSONs
-    initialize_models()  # Load ML models into memory/GPU
-    print("--- Server ready to accept requests ---")
+    print("\n--- Server starting up ---")
+    load_pool()
+    initialize_models()
+    print("--- Models loaded and ready ---\n")
 
-@app.post("/match", response_model=MatchResponse)
-def create_matches(query_user: QueryUser):
+@app.post("/api/matches-bulk", response_model=MatchResponse)
+def find_companions(query_user: QueryUser):
     """
-    Accepts a user profile and returns a list of top potential travel matches.
+    Main endpoint to find travel companions.
+    Call this endpoint via the ngrok public URL.
     """
     try:
-        # Convert Pydantic model back to a dictionary for the matcher functions
+        print(f"🚀 Starting match process for: {query_user.name}")
         user_dict = query_user.model_dump()
         
+        # Call the matching logic
         results = find_matches(user_dict)
+        response_data = {"matches": results}
         
-        return {"matches": results}
+        # Store in history with timestamp
+        match_history.append({
+            "timestamp": datetime.now().isoformat(),
+            "user_name": query_user.name,
+            "match_count": len(results),
+            "data": response_data
+        })
+        
+        print(f"✅ Found {len(results)} matches for {query_user.name}")
+        print(f"📊 Total requests processed: {len(match_history)}")
+        
+        return response_data
+
     except Exception as e:
-        print(f"An error occurred during matching: {e}")
-        # Be specific about the error in the logs, but generic to the client
-        raise HTTPException(status_code=500, detail="Internal server error during match processing.")
+        print(f"❌ Error during matching: {e}")
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Internal server error during match processing: {str(e)}"
+        )
+
+@app.get("/api/find-companions")
+def find_companions_info():
+    """Info about the find-companions endpoint"""
+    return {
+        "message": "POST to this endpoint with a QueryUser object to find travel companions",
+        "method": "POST",
+        "public_url": ngrok_public_url,
+        "example_endpoint": f"{ngrok_public_url}/api/find-companions" if ngrok_public_url else "Not available",
+        "documentation": f"{ngrok_public_url}/docs" if ngrok_public_url else "Not available"
+    }
+
+@app.get("/api/match-history")
+def get_match_history(limit: Optional[int] = None):
+    """
+    Retrieve all stored match results.
+    Query parameter 'limit' to get only recent results.
+    Example: /api/match-history?limit=10
+    """
+    history = match_history[-limit:] if limit else match_history
+    return {
+        "total_requests": len(match_history),
+        "returned": len(history),
+        "history": history
+    }
+
+@app.delete("/api/match-history")
+def clear_match_history():
+    """Clear all stored match history"""
+    global match_history
+    count = len(match_history)
+    match_history = []
+    return {
+        "status": "cleared",
+        "deleted_count": count
+    }
+
+@app.get("/")
+def root():
+    """Root endpoint with API information"""
+    return {
+        "service": "RoverMitra Matchmaking API",
+        "version": "2.0.0",
+        "public_url": ngrok_public_url,
+        "endpoints": {
+            "find_companions": "POST /api/matches-bulk",
+            "match_history": "GET /api/match-history",
+            "clear_history": "DELETE /api/match-history",
+            "docs": "GET /docs",
+            "health": "GET /health"
+        },
+        "status": "running"
+    }
+
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "requests_processed": len(match_history),
+        "public_url": ngrok_public_url
+    }
+
+def run_server():
+    """Separate function to run the server (Windows multiprocessing compatible)"""
+    global ngrok_public_url
+    
+    port = 8000
+    
+    # Create ngrok tunnel BEFORE starting the server
+    print("🌐 Creating Ngrok tunnel...")
+    tunnel = ngrok.connect(port)
+    ngrok_public_url = tunnel.public_url
+    
+    # Display connection info
+    print("\n" + "="*80)
+    print("🚀 RoverMitra Matchmaking API is LIVE!")
+    print("="*80)
+    print(f"📍 Public URL:        {ngrok_public_url}")
+    print(f"📖 API Documentation: {ngrok_public_url}/docs")
+    print(f"🔍 Find Companions:   POST {ngrok_public_url}/api/matches-bulk")
+    print(f"📊 Match History:     GET  {ngrok_public_url}/api/match-history")
+    print(f"❤️  Health Check:      GET  {ngrok_public_url}/health")
+    print("="*80)
+    print("💡 Use the public URL above to access your API from anywhere!")
+    print("="*80 + "\n")
+    
+    # Start the server
+    uvicorn.run("api:app", host="0.0.0.0", port=port, reload=False)
 
 if __name__ == "__main__":
-    # This allows you to run the API directly for testing
-    # For production, use: uvicorn api:app --host 0.0.0.0 --port 8000
-    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=True)
+    run_server()
