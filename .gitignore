@@ -150,3 +150,7 @@ logs/
 # -------------------------
 *.gv
 *.gv.png
+local_inference_server/
+local_llama_server.py
+railway_deployment/
+test_llama_api_server.py
