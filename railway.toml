@@ -5,7 +5,7 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "python serve_llama.py"
+startCommand = "python llama_api_server.py"
 healthcheckPath = "/health"
 healthcheckTimeout = 600
 restartPolicyType = "ON_FAILURE"
