@@ -1,0 +1,38 @@
+{
+  "name": "Maria Munich",
+  "age": 32,
+  "gender": "Female",
+  "home_base": {
+    "city": "Munich",
+    "country": "Germany"
+  },
+  "languages": ["de", "en", "it"],
+  "interests": ["food tours", "vineyards", "coffee crawls"],
+  "values": ["food", "luxury-taste"],
+  "bio": "Munich foodie and wine enthusiast",
+  "travel_prefs": {
+    "pace": "relaxed"
+  },
+  "budget": {
+    "amount": 250,
+    "currency": "EUR"
+  },
+  "diet_health": {
+    "diet": "vegetarian"
+  },
+  "comfort": {
+    "smoking": "never",
+    "alcohol": "social"
+  },
+  "work": {
+    "remote_work_ok": true
+  },
+  "companion_preferences": {
+    "genders_ok": ["Women"]
+  },
+  "faith": {
+    "consider_in_matching": true,
+    "religion": "Christian",
+    "policy": "prefer_same"
+  }
+}

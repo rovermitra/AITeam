@@ -74,13 +74,13 @@ def load_pool():
     
     users = json.loads(USERS_CORE_PATH.read_text(encoding="utf-8"))
     mm = json.loads(MM_PATH.read_text(encoding="utf-8"))
-    mm_by_uid = index_by(mm, "user_id")
+    mm_by_email = index_by(mm, "email")
     
     pool = []
     for u in users:
-        uid = u.get("user_id")
-        if not uid: continue
-        pool.append({"user": u, "mm": mm_by_uid.get(uid)})
+        email = u.get("email")
+        if not email: continue
+        pool.append({"user": u, "mm": mm_by_email.get(email)})
     CANDIDATE_POOL = pool
     print(f"✅ Candidate pool loaded with {len(CANDIDATE_POOL)} profiles.")
 
@@ -293,9 +293,9 @@ def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: f
         print("[Info] ML models/cache unavailable for pre-filtering; using heuristic shortlist.")
         return _heuristic_shortlist(q_user, cands, percent, min_k)
 
-    uid2idx = {uid: i for i, uid in enumerate(_CACHED_IDS)}
-    cand_uids = [rec["user"]["user_id"] for rec in cands]
-    cand_row_idx = [uid2idx.get(u) for u in cand_uids]
+    email2idx = {email: i for i, email in enumerate(_CACHED_IDS)}
+    cand_emails = [rec["user"].get("email") for rec in cands]
+    cand_row_idx = [email2idx.get(e) for e in cand_emails]
 
     # Encode query user profile
     qv = _EMB_MODEL.encode(
@@ -389,7 +389,7 @@ def llm_rank_fallback(q_user: Dict[str, Any], shortlist: List[Dict[str, Any]], o
         u = rec["user"]
         score = 0.70 + 0.25 * jaccard(q_user.get("interests", []), u.get("interests", []))
         results.append({
-            "user_id": u.get("user_id"), "name": u.get("name"),
+            "email": u.get("email"), "name": u.get("name"),
             "explanation": craft_specific_reason(q_user, u),
             "compatibility_score": round(min(score, 0.99), 2)
         })
@@ -420,7 +420,7 @@ def llm_rank(q_user: Dict[str, Any], shortlist: List[Dict[str, Any]], out_top: i
             if uid and uid not in seen_ids:
                 try:
                     cleaned.append({
-                        "user_id": str(uid),
+                        "email": str(uid),
                         "name": str(m.get("name", "")),
                         "explanation": str(m.get("explanation", "")),
                         "compatibility_score": float(m.get("compatibility_score", 0.0))

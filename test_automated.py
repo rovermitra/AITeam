@@ -32,6 +32,22 @@ TOP_K = int(os.getenv("RM_TEST_TOP_K", "4"))
 
 def choose_module_name() -> str:
     print("🔧 Testing main module (Railway Postgres + Local Models)...")
+    
+    # Check if llama_api_server is running
+    try:
+        import requests
+        response = requests.get("http://localhost:8002/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("status") == "ok" and data.get("models_loaded", False):
+                print("✅ Llama API server detected - will use pre-loaded models!")
+            else:
+                print("⚠️ Llama API server running but models not loaded")
+        else:
+            print("⚠️ Llama API server not responding properly")
+    except Exception:
+        print("ℹ️ Llama API server not running - will use local models")
+    
     return "main"
 
 def import_pipeline_module(mod_name: str):

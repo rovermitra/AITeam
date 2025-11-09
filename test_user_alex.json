@@ -1,0 +1,38 @@
+{
+  "name": "Alex Berlin",
+  "age": 28,
+  "gender": "Male",
+  "home_base": {
+    "city": "Berlin",
+    "country": "Germany"
+  },
+  "languages": ["en", "de"],
+  "interests": ["museums", "architecture", "photography"],
+  "values": ["culture", "learning"],
+  "bio": "Berlin-based culture enthusiast who loves museums and architecture",
+  "travel_prefs": {
+    "pace": "balanced"
+  },
+  "budget": {
+    "amount": 150,
+    "currency": "EUR"
+  },
+  "diet_health": {
+    "diet": "none"
+  },
+  "comfort": {
+    "smoking": "never",
+    "alcohol": "moderate"
+  },
+  "work": {
+    "remote_work_ok": false
+  },
+  "companion_preferences": {
+    "genders_ok": ["Men"]
+  },
+  "faith": {
+    "consider_in_matching": false,
+    "religion": "",
+    "policy": "open"
+  }
+}

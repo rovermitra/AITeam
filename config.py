@@ -18,7 +18,7 @@ LLAMA_BASE_PATH          = MODELS_DIR / "llama-3.2-3b-instruct"
 
 # --- Cache paths ---
 CACHE_DIR = BASE_DIR / "models_cache"
-UIDS_PATH = CACHE_DIR / "bge_user_ids.npy"
+UIDS_PATH = CACHE_DIR / "bge_user_emails.npy"
 EMB_PATH  = CACHE_DIR / "bge_embeds_fp16.npy"
 
 # --- Environment setup for ML libraries ---

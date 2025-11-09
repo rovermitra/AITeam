@@ -725,11 +725,34 @@ def hard_prefilter(q: Dict[str,Any], pool: List[Dict[str,Any]]) -> List[Dict[str
 _EMB: Optional[SentenceTransformer] = None
 _cached_ids = None
 _cached_embs = None
+_SERVER_EMB_AVAILABLE = None
+
+def check_server_embeddings():
+    """Check if server has embeddings available"""
+    global _SERVER_EMB_AVAILABLE
+    if _SERVER_EMB_AVAILABLE is not None:
+        return _SERVER_EMB_AVAILABLE
+    try:
+        response = requests.get("http://localhost:8002/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            _SERVER_EMB_AVAILABLE = data.get("status") == "ok" and data.get("models_loaded", False)
+        else:
+            _SERVER_EMB_AVAILABLE = False
+    except Exception:
+        _SERVER_EMB_AVAILABLE = False
+    return _SERVER_EMB_AVAILABLE
 
 def ensure_emb(device: str = "cuda"):
     global _EMB
     if not _ML_OK:
         return None
+    
+    # Check if server has embeddings loaded first
+    if check_server_embeddings():
+        print("Using BGE-M3 embeddings from server...")
+        return "server"  # Return special marker for server mode
+    
     if _EMB is None:
         dev = device if (hasattr(torch, "cuda") and torch.cuda.is_available()) else "cpu"
         print(f"Loading BGE-M3 embedding model from local path: {BGE_M3_PATH}...")
@@ -798,12 +821,41 @@ def _heuristic_shortlist(q_user: Dict[str, Any], cands: List[Dict[str, Any]], pe
     k = min(k, len(scored))
     return [rec for rec, _ in scored[:k]]
 
+def _server_ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: float = 0.02, min_k: int = 80) -> List[Dict[str, Any]]:
+    """Use server's embeddings for AI prefilter"""
+    try:
+        # Use server's prefilter endpoint
+        response = requests.post(
+            "http://localhost:8002/prefilter",
+            json={
+                "query_user": q_user,
+                "candidates": cands,
+                "percent": percent,
+                "min_k": min_k
+            },
+            timeout=30
+        )
+        if response.status_code == 200:
+            result = response.json()
+            return result.get("filtered_candidates", [])
+        else:
+            print(f"[warn] Server prefilter failed: {response.status_code}")
+            return _heuristic_shortlist(q_user, cands, percent, min_k)
+    except Exception as e:
+        print(f"[warn] Server prefilter error: {e}")
+        return _heuristic_shortlist(q_user, cands, percent, min_k)
+
 def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: float = 0.02, min_k: int = 80) -> List[Dict[str, Any]]:
     if not cands:
         return []
     if not _ML_OK:
         print("[info] ML stack unavailable; using heuristic shortlist.")
         return _heuristic_shortlist(q_user, cands, percent, min_k)
+
+    # Check if server has embeddings available
+    if check_server_embeddings():
+        print("[info] Using server embeddings for AI prefilter...")
+        return _server_ai_prefilter(q_user, cands, percent, min_k)
 
     try:
         ids, embs = _load_bge_cache()
@@ -816,7 +868,7 @@ def ai_prefilter(q_user: Dict[str, Any], cands: List[Dict[str, Any]], percent: f
     cand_row_idx = [email2idx.get(e) for e in cand_emails]
 
     model = ensure_emb()
-    if model is None:
+    if model is None or model == "server":
         print("[info] No embedding model; using heuristic shortlist.")
         return _heuristic_shortlist(q_user, cands, percent, min_k)
 

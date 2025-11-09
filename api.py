@@ -6,7 +6,39 @@ from pyngrok import ngrok
 from datetime import datetime
 
 # Import your logic
-from matcher import find_matches, load_pool, initialize_models
+from main import load_pool, hard_prefilter, ai_prefilter, llm_rank
+
+def find_matches(query_user: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The main pipeline function to find matches for a given user using main.py functions."""
+    print(f"\n🚀 Starting match process for: {query_user.get('name')}")
+    
+    # Load pool data
+    pool = load_pool()
+    if not pool:
+        print("No candidates found.")
+        return []
+    
+    # 1. Hard Prefilters
+    hard_filtered = hard_prefilter(query_user, pool)
+    print(f"✅ Hard prefilter: {len(pool)} -> {len(hard_filtered)} candidates")
+    if not hard_filtered:
+        return []
+
+    # 2. AI Prefilter (BGE)
+    shortlist = ai_prefilter(query_user, hard_filtered, percent=0.02, min_k=80)
+    print(f"✅ AI prefilter: {len(hard_filtered)} -> {len(shortlist)} candidates")
+    if not shortlist:
+        return []
+
+    # 3. Final Ranking (Llama)
+    final_matches = llm_rank(query_user, shortlist, out_top=5)
+    print(f"✅ Llama ranking: {len(shortlist)} -> {len(final_matches)} matches")
+
+    # 4. Filter by quality score
+    high_quality = [m for m in final_matches if m.get("compatibility_score", 0) >= 0.75]
+    print(f"✅ Found {len(high_quality)} high-quality matches (score >= 75%).")
+    
+    return high_quality if high_quality else final_matches
 
 # --- Global variables ---
 ngrok_public_url: Optional[str] = None
@@ -47,7 +79,7 @@ class QueryUser(BaseModel):
     faith: Faith
 
 class MatchResult(BaseModel):
-    user_id: str
+    email: str
     name: str
     explanation: str
     compatibility_score: float = Field(..., ge=0.0, le=1.0)
@@ -66,8 +98,7 @@ app = FastAPI(
 def startup_event():
     print("\n--- Server starting up ---")
     load_pool()
-    initialize_models()
-    print("--- Models loaded and ready ---\n")
+    print("--- Data loaded and ready ---\n")
 
 @app.post("/api/matches-bulk", response_model=MatchResponse)
 def find_companions(query_user: QueryUser):
@@ -169,7 +200,7 @@ def run_server():
     """Separate function to run the server (Windows multiprocessing compatible)"""
     global ngrok_public_url
     
-    port = 8000
+    port = 5003
     
     # Create ngrok tunnel BEFORE starting the server
     print("🌐 Creating Ngrok tunnel...")

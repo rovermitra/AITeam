@@ -11,7 +11,7 @@ from pathlib import Path
 def upload_matchmaker_data():
     """Upload matchmaker data directly to Railway Postgres"""
     
-    DATABASE_URL = "postgresql://postgres:YOUR_PASSWORD@YOUR_HOST:YOUR_PORT/YOUR_DATABASE"
+    DATABASE_URL = "postgresql://postgres:RzBikKnKvwEeEUMDmGYFskiVJStCeOOH@hopper.proxy.rlwy.net:11809/railway"
     
     try:
         print("🔗 Connecting to Railway Postgres...")
@@ -37,8 +37,7 @@ def upload_matchmaker_data():
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS matchmaker_profiles (
                 id SERIAL PRIMARY KEY,
-                match_profile_id VARCHAR(255) UNIQUE NOT NULL,
-                email VARCHAR(255) NOT NULL,
+                user_id VARCHAR(255) UNIQUE NOT NULL,
                 status VARCHAR(50),
                 created_at TIMESTAMP WITH TIME ZONE,
                 updated_at TIMESTAMP WITH TIME ZONE,
@@ -62,8 +61,7 @@ def upload_matchmaker_data():
         for i, profile in enumerate(matchmaker_data, 1):
             try:
                 # Extract key fields
-                match_profile_id = profile.get("match_profile_id", f"mm_{i}")
-                email = profile.get("email", "")
+                user_id = profile.get("user_id", profile.get("id", f"user_{i}"))
                 status = profile.get("status", "active")
                 created_at = profile.get("created_at")
                 updated_at = profile.get("updated_at")
@@ -75,18 +73,17 @@ def upload_matchmaker_data():
                 # Insert into database
                 cursor.execute("""
                     INSERT INTO matchmaker_profiles 
-                    (match_profile_id, email, status, created_at, updated_at, 
+                    (user_id, status, created_at, updated_at, 
                      visibility, preferences, compatibility_scores, raw_data)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT (match_profile_id) DO UPDATE SET
-                        email = EXCLUDED.email,
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (user_id) DO UPDATE SET
                         status = EXCLUDED.status,
                         updated_at = EXCLUDED.updated_at,
                         visibility = EXCLUDED.visibility,
                         preferences = EXCLUDED.preferences,
                         compatibility_scores = EXCLUDED.compatibility_scores,
                         raw_data = EXCLUDED.raw_data
-                """, (match_profile_id, email, status, created_at, updated_at,
+                """, (user_id, status, created_at, updated_at,
                       visibility, preferences, compatibility_scores, raw_data))
                 
                 success_count += 1

@@ -1,0 +1,38 @@
+{
+  "name": "Tom Karachi",
+  "age": 25,
+  "gender": "Male",
+  "home_base": {
+    "city": "Karachi",
+    "country": "Pakistan"
+  },
+  "languages": ["en", "ur"],
+  "interests": ["beaches", "diving", "nightlife"],
+  "values": ["adventure", "social"],
+  "bio": "Adventure seeker from Karachi",
+  "travel_prefs": {
+    "pace": "packed"
+  },
+  "budget": {
+    "amount": 100,
+    "currency": "USD"
+  },
+  "diet_health": {
+    "diet": "halal"
+  },
+  "comfort": {
+    "smoking": "never",
+    "alcohol": "none"
+  },
+  "work": {
+    "remote_work_ok": false
+  },
+  "companion_preferences": {
+    "genders_ok": ["Men"]
+  },
+  "faith": {
+    "consider_in_matching": true,
+    "religion": "Islam",
+    "policy": "prefer_same"
+  }
+}

@@ -7,6 +7,7 @@ Pre-loads all models and data for fast inference
 import os
 import json
 import time
+import math
 import psycopg2
 from pathlib import Path
 from typing import Dict, List, Any, Optional
@@ -44,6 +45,11 @@ CACHE_DIR = BASE_DIR / "models_cache"
 UIDS_PATH = CACHE_DIR / "bge_user_emails.npy"
 EMB_PATH = CACHE_DIR / "bge_embeds_fp16.npy"
 
+# Local data paths (fallback)
+USERS_CORE_PATH = BASE_DIR / "users" / "data" / "users_core.json"
+MM_PATH = BASE_DIR / "MatchMaker" / "data" / "matchmaker_profiles.json"
+LOCAL_DB_PATH = BASE_DIR / "data" / "travel_ready_user_profiles.json"
+
 # Global variables for loaded models/data
 _EMB = None
 _LLM_FINETUNED = None
@@ -53,6 +59,15 @@ _cached_embs = None
 _pool_data = None
 
 app = FastAPI(title="RoverMitra Llama API", version="1.0.0")
+
+# Utility functions for local data loading
+def load_json(path: Path) -> list:
+    """Load JSON data from file"""
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else []
+
+def index_by(lst: list, key: str) -> Dict[str, Any]:
+    """Index list by key"""
+    return {x.get(key): x for x in lst if isinstance(x, dict) and x.get(key)}
 
 class RankRequest(BaseModel):
     prompt: str
@@ -350,6 +365,31 @@ def load_railway_data():
         print(f"❌ Failed to load Railway data: {e}")
         return False
 
+def load_local_data():
+    """Load data from local JSON files (fallback)"""
+    global _pool_data
+    
+    try:
+        print("Falling back to local JSON files...")
+        users = load_json(USERS_CORE_PATH)
+        mm = load_json(MM_PATH)
+        mm_by_email = index_by(mm, "email")
+        
+        pool = []
+        for u in users:
+            email = u.get("email")
+            if not email:
+                continue
+            pool.append({"user": u, "mm": mm_by_email.get(email)})
+        
+        _pool_data = pool
+        print(f"✅ Loaded {len(pool)} candidates from local files.")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Failed to load local data: {e}")
+        return False
+
 def build_llm_prompt(q_user: Dict[str,Any], shortlist: List[Dict[str,Any]], top_k:int=5) -> str:
     """Build LLM prompt"""
     def query_text(q: Dict[str,Any]) -> str:
@@ -465,11 +505,16 @@ async def startup_event():
     print("📊 Loading data...")
     data_ok = load_railway_data()
     
+    # If Railway data failed, try local fallback
+    if not data_ok:
+        print("📊 Railway data failed, trying local fallback...")
+        data_ok = load_local_data()
+    
     print("✅ Server startup complete!")
     print(f"   Embeddings: {'✅' if embeddings_ok else '❌'}")
     print(f"   BGE Cache: {'✅' if cache_ok else '❌'}")
     print(f"   Llama Model: {'✅' if llama_ok else '❌'}")
-    print(f"   Railway Data: {'✅' if data_ok else '❌'}")
+    print(f"   Data: {'✅' if data_ok else '❌'}")
 
 @app.get("/")
 def root():
@@ -517,11 +562,74 @@ class PrefilterRequest(BaseModel):
 async def ai_prefilter(request: PrefilterRequest):
     """AI prefilter using loaded BGE embeddings"""
     try:
-        from main import ai_prefilter as main_ai_prefilter
-        result = main_ai_prefilter(request.query_user, request.candidates, request.percent, request.min_k)
+        # Use the server's own embeddings and cache
+        if _EMB is None or _cached_ids is None or _cached_embs is None:
+            raise HTTPException(status_code=500, detail="Embeddings not loaded on server")
+        
+        # Import the heuristic function for fallback
+        import sys
+        sys.path.append('.')
+        from main import _heuristic_shortlist, query_text
+        
+        # Get query embedding
+        qv = _EMB.encode(
+            [query_text(request.query_user)],
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False
+        )[0].astype("float16")
+        
+        # Find candidates in cache
+        email2idx = {email: i for i, email in enumerate(_cached_ids)}
+        cand_emails = [rec["user"].get("email") for rec in request.candidates]
+        cand_row_idx = [email2idx.get(e) for e in cand_emails]
+        
+        # Calculate similarities
+        valid_pairs = [(i, idx) for i, idx in enumerate(cand_row_idx) if idx is not None]
+        sims_full = np.full(len(request.candidates), 0.30, dtype="float32")
+        
+        if valid_pairs:
+            sub = _cached_embs[[idx for (_, idx) in valid_pairs]]
+            sims = (sub @ qv).astype("float32")
+            s_min, s_max = float(sims.min()), float(sims.max())
+            sims_norm = (sims - s_min) / (s_max - s_min) if s_max > s_min else np.full_like(sims, 0.5, dtype="float32")
+            for (pos, _), val in zip(valid_pairs, sims_norm):
+                sims_full[pos] = float(val)
+        
+        # Add heuristic bonuses (simplified version)
+        bonuses = []
+        q_interests = set(request.query_user.get("interests", []) or [])
+        q_values = set(request.query_user.get("values", []) or [])
+        
+        for rec in request.candidates:
+            u = rec["user"]
+            ui = set(u.get("interests", []) or [])
+            uv = set(u.get("values", []) or [])
+            b = 0.0
+            b += 0.60 * (len(q_interests & ui) / max(1, len(q_interests | ui)))
+            b += 0.30 * (len(q_values & uv) / max(1, len(q_values | uv)))
+            bonuses.append(b)
+        
+        # Combine and sort
+        combined = [(request.candidates[i], float(sims_full[i]) + float(bonuses[i])) for i in range(len(request.candidates))]
+        combined.sort(key=lambda x: x[1], reverse=True)
+        
+        # Return top candidates
+        k = max(request.min_k, int(math.ceil(len(combined) * request.percent)))
+        k = min(k, len(combined))
+        result = [rec for rec, _ in combined[:k]]
+        
         return {"filtered_candidates": result, "count": len(result)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        # Fallback to heuristic
+        try:
+            import sys
+            sys.path.append('.')
+            from main import _heuristic_shortlist
+            result = _heuristic_shortlist(request.query_user, request.candidates, request.percent, request.min_k)
+            return {"filtered_candidates": result, "count": len(result)}
+        except Exception as e2:
+            raise HTTPException(status_code=500, detail=f"Server prefilter failed: {e}, fallback failed: {e2}")
 
 if __name__ == "__main__":
     print("🚀 Starting RoverMitra Llama API Server...")
